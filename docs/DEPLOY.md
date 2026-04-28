@@ -1,41 +1,31 @@
 # Deployment
 
 Production target: AWS EC2 instance running on a subdomain (`vtt.<your-domain>`),
-behind nginx with Let's Encrypt TLS, supervised by systemd.
+behind nginx with Let's Encrypt TLS, supervised by pm2 under the `ubuntu` user.
 
-## One-time host setup
+This pattern reuses the same pm2 + `~/services/<svc>/` layout as the rest of
+the EC2 box's deployments — no dedicated user, no systemd unit. The trade-off
+is some hardening (process isolation, NoNewPrivileges, etc.); fine for a
+single-campaign personal app.
+
+## One-time host setup (per subdomain)
+
+Assumes nginx, certbot, Node, and pm2 are already installed on the EC2 box
+(they are — they run the existing CS260 deployments).
 
 On the EC2 box:
 
-1. Install dependencies:
+1. Copy the nginx site config into place. From the dev machine:
 
    ```bash
-   sudo apt update
-   sudo apt install -y nginx nodejs certbot python3-certbot-nginx apache2-utils
+   scp -i <key> infra/nginx/vtt.conf ubuntu@<host>:/tmp/vtt.conf
+   ssh -i <key> ubuntu@<host> sudo install -m 0644 /tmp/vtt.conf /etc/nginx/sites-available/vtt.conf
    ```
 
-2. Clone or copy this repo (anywhere; it's only needed for the setup script):
+2. Edit `/etc/nginx/sites-available/vtt.conf` on the EC2 box and replace
+   `vtt.example.com` (4 places) with your actual subdomain.
 
-   ```bash
-   git clone <repo-url> /tmp/vtt-setup   # or scp the repo over
-   ```
-
-3. Run the setup script (idempotent):
-
-   ```bash
-   sudo bash /tmp/vtt-setup/infra/scripts/setup-host.sh
-   ```
-
-4. Edit the nginx site config at `/etc/nginx/sites-available/vtt.conf` and
-   replace `vtt.example.com` with your actual subdomain (4 places).
-
-5. Generate the app secret:
-
-   ```bash
-   echo "APP_SECRET=$(openssl rand -hex 32)" | sudo tee -a /etc/vtt/env
-   ```
-
-6. Enable the nginx site and acquire a TLS certificate:
+3. Enable the site and acquire a TLS cert:
 
    ```bash
    sudo ln -sf /etc/nginx/sites-available/vtt.conf /etc/nginx/sites-enabled/
@@ -43,41 +33,30 @@ On the EC2 box:
    sudo nginx -t && sudo systemctl reload nginx
    ```
 
-## Build & deploy
+## Deploy
 
-The author has an existing per-subdomain deploy script for this EC2 instance.
-Adapt that script to handle these VTT-specific steps:
-
-**On the dev machine (pre-deploy):**
+From the dev machine:
 
 ```bash
-npm ci
-npm run build      # produces dist/server.js + public/
+bash infra/scripts/deploy.sh -k <pem key> -h vtt.<your-domain>
 ```
 
-**Files to ship to the EC2 box:**
+What the script does:
+1. `npm ci && npm run build` locally — produces `dist/server.js` and `public/`.
+2. Stages `dist/`, `public/`, `package.json`, `package-lock.json` in a temp
+   `build/` directory.
+3. SSHes to the EC2 box, wipes `~/services/vtt/`, scp's the staged bundle in.
+4. Runs `npm ci --omit=dev` on the box (pulls Express, Socket.IO, etc.).
+5. `pm2 start dist/server.js --name vtt` (first time) or `pm2 restart vtt`
+   (subsequent), then `pm2 save`.
 
-- `dist/`               → `/opt/vtt/dist/`
-- `public/`             → `/opt/vtt/public/`
-- `package.json`        → `/opt/vtt/package.json`
-- `package-lock.json`   → `/opt/vtt/package-lock.json`
-
-(Don't ship `node_modules/` — `npm ci --omit=dev` runs on the EC2 box.)
-
-**On the EC2 box (post-transfer):**
-
-```bash
-cd /opt/vtt
-sudo -u vtt npm ci --omit=dev
-sudo systemctl restart vtt
-```
-
-(Once migrations land in M2, this becomes:
-`sudo -u vtt node /opt/vtt/dist/scripts/migrate.js && sudo systemctl restart vtt`.)
+The server listens on port 3000; nginx reverse-proxies the public subdomain
+to `127.0.0.1:3000` and serves the static client out of
+`/home/ubuntu/services/vtt/public`.
 
 ## First-deploy verification
 
-After deploying, on your local machine:
+After the script finishes, on your local machine:
 
 ```bash
 curl https://vtt.<your-domain>/api/health
@@ -88,21 +67,17 @@ Then load `https://vtt.<your-domain>` in a browser. The page should show:
 
 > Socket: connected — server says "connected"
 
-If anything fails, check:
+If anything fails, check on the EC2 box:
 
-- `sudo journalctl -u vtt -n 100`           — Node app logs
-- `sudo tail -f /var/log/nginx/error.log`   — nginx errors
-- `sudo systemctl status vtt`               — service state
-
-## Logs
-
-App stdout/stderr land in `/var/log/vtt/app.log` (configured in the systemd
-unit). Add a logrotate entry once volume warrants it.
+- `pm2 logs vtt --lines 100`               — Node app logs
+- `pm2 status`                             — process state
+- `sudo tail -f /var/log/nginx/error.log`  — nginx errors
 
 ## What this milestone (M1) does NOT include
 
 - Auth (no Basic Auth gates yet — `/dm` and `/` are publicly reachable).
 - The migrations runner (`scripts/migrate.js`).
 - SQLite, image uploads, anything stateful.
+- Env file management (no `APP_SECRET` yet — comes in M2 along with auth).
 
 These land in M2+.
