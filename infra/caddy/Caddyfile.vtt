@@ -5,13 +5,23 @@
 vtt.5edice.com {
     encode gzip
 
-    # API + Socket.IO go to Node. Caddy v2's reverse_proxy supports
-    # WebSocket upgrades out of the box — no extra config needed.
-    @backend path /api/* /socket.io/*
-    reverse_proxy @backend localhost:3002
+    # API + Socket.IO → Node. `handle` blocks make each request go to exactly
+    # one handler — without them, `try_files` in the SPA block rewrites the
+    # path before `reverse_proxy` evaluates its matcher, and the WebSocket
+    # upgrade request gets served index.html instead of being proxied.
+    # Caddy v2's reverse_proxy supports WebSocket upgrades automatically.
+    handle /api/* {
+        reverse_proxy localhost:3002
+    }
+
+    handle /socket.io/* {
+        reverse_proxy localhost:3002
+    }
 
     # Everything else: static client with SPA fallback.
-    root * /home/ubuntu/services/vtt/public
-    try_files {path} /index.html
-    file_server
+    handle {
+        root * /home/ubuntu/services/vtt/public
+        try_files {path} /index.html
+        file_server
+    }
 }
