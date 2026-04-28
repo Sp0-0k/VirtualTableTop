@@ -1,6 +1,5 @@
 import express from 'express';
 import http from 'node:http';
-import { fileURLToPath } from 'node:url';
 import healthRouter from './routes/health.js';
 import { attachSocketIO } from './socket.js';
 
@@ -14,13 +13,4 @@ export function createServer(): http.Server {
   attachSocketIO(httpServer);
 
   return httpServer;
-}
-
-const thisFile = fileURLToPath(import.meta.url);
-if (process.argv[1] === thisFile) {
-  const server = createServer();
-  const port = Number(process.env.PORT ?? 3002);
-  server.listen(port, () => {
-    console.log(`vtt server listening on :${port}`);
-  });
 }

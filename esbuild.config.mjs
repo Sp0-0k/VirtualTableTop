@@ -1,7 +1,7 @@
 import { build } from 'esbuild';
 
 await build({
-  entryPoints: ['server/src/server.ts'],
+  entryPoints: ['server/src/main.ts'],
   bundle: true,
   platform: 'node',
   target: 'node20',
