@@ -1,0 +1,30 @@
+# Place at /etc/systemd/system/vtt.service.
+# Run `sudo systemctl daemon-reload` after editing.
+
+[Unit]
+Description=Virtual Tabletop
+After=network.target
+
+[Service]
+Type=simple
+User=vtt
+Group=vtt
+WorkingDirectory=/opt/vtt
+EnvironmentFile=/etc/vtt/env
+ExecStart=/usr/bin/node /opt/vtt/dist/server.js
+Restart=on-failure
+RestartSec=2
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/vtt /var/log/vtt
+PrivateTmp=true
+
+# Logging — append to a single file; logrotate handles rotation separately.
+StandardOutput=append:/var/log/vtt/app.log
+StandardError=append:/var/log/vtt/app.log
+
+[Install]
+WantedBy=multi-user.target
