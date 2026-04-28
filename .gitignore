@@ -1,0 +1,22 @@
+# Brainstorm visual companion working directory
+.superpowers/
+
+# Node
+node_modules/
+dist/
+*.log
+
+# Env / secrets
+.env
+.env.local
+*.pem
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Local Claude Code settings
+.claude/settings.local.json
+
