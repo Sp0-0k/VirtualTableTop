@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import healthRouter from './routes/health.js';
+import { attachSocketIO } from './socket.js';
 
 export function createServer(): http.Server {
   const app = express();
@@ -9,7 +10,10 @@ export function createServer(): http.Server {
   app.use(express.json());
   app.use('/api/health', healthRouter);
 
-  return http.createServer(app);
+  const httpServer = http.createServer(app);
+  attachSocketIO(httpServer);
+
+  return httpServer;
 }
 
 const thisFile = fileURLToPath(import.meta.url);
