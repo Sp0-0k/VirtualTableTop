@@ -15,7 +15,7 @@ export function setSignedCookie(
 ): void {
   const signed = signCookie(value);
   const secure = opts.secure ?? process.env.COOKIE_SECURE === '1';
-  res.setHeader(
+  res.append(
     'Set-Cookie',
     cookie.serialize(name, signed, {
       httpOnly: true,

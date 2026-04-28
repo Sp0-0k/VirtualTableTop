@@ -53,5 +53,28 @@ describe('signed cookie express helpers', () => {
     expect(cookie).toMatch(/HttpOnly/);
     expect(cookie).toMatch(/SameSite=Lax/);
     expect(cookie).toMatch(/Path=\//);
+    expect(cookie).toMatch(/Max-Age=60(;|$)/);
+    expect(cookie).not.toMatch(/Domain=/);
+  });
+
+  it('Set-Cookie does NOT include Secure when COOKIE_SECURE is unset', async () => {
+    const setRes = await request(makeApp()).get('/set');
+    const raw = setRes.headers['set-cookie']!;
+    const cookie = (Array.isArray(raw) ? raw[0] : raw) as string;
+    expect(cookie).not.toMatch(/Secure/);
+  });
+
+  it('Set-Cookie includes Secure when COOKIE_SECURE=1', async () => {
+    const original = process.env.COOKIE_SECURE;
+    process.env.COOKIE_SECURE = '1';
+    try {
+      const setRes = await request(makeApp()).get('/set');
+      const raw = setRes.headers['set-cookie']!;
+      const cookie = (Array.isArray(raw) ? raw[0] : raw) as string;
+      expect(cookie).toMatch(/Secure/);
+    } finally {
+      if (original === undefined) delete process.env.COOKIE_SECURE;
+      else process.env.COOKIE_SECURE = original;
+    }
   });
 });
