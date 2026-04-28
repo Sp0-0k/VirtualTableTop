@@ -12,6 +12,11 @@ public/
 .env.local
 *.pem
 
+# SQLite databases
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
 # OS / editor
 .DS_Store
 Thumbs.db
