@@ -16,7 +16,7 @@ npm run dev:server   # in one terminal
 npm run dev:client   # in another terminal
 ```
 
-Server runs on :3000, client dev server on :5173 (Vite default), proxying
+Server runs on :3002, client dev server on :5173 (Vite default), proxying
 `/api` and `/socket.io` to the server.
 
 ## Tests

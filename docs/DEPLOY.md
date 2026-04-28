@@ -43,9 +43,9 @@ What the script does:
 5. `pm2 start dist/server.js --name vtt` (first time) or `pm2 restart vtt`
    (subsequent), then `pm2 save`.
 
-The Node process listens on port 3000; Caddy serves the static client out of
+The Node process listens on port 3002; Caddy serves the static client out of
 `/home/ubuntu/services/vtt/public` and reverse-proxies `/api/*` and
-`/socket.io/*` to `127.0.0.1:3000` (WebSocket upgrades handled automatically).
+`/socket.io/*` to `127.0.0.1:3002` (WebSocket upgrades handled automatically).
 
 ## First-deploy verification
 

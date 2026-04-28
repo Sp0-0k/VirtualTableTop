@@ -19,7 +19,7 @@ export function createServer(): http.Server {
 const thisFile = fileURLToPath(import.meta.url);
 if (process.argv[1] === thisFile) {
   const server = createServer();
-  const port = Number(process.env.PORT ?? 3000);
+  const port = Number(process.env.PORT ?? 3002);
   server.listen(port, () => {
     console.log(`vtt server listening on :${port}`);
   });
