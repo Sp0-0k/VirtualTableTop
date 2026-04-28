@@ -1,27 +1,21 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
-import type { Server } from 'http';
-import type { AddressInfo } from 'net';
-import { createServer } from '../server/src/server.js';
+import { startTestServer, type TestServer } from './helpers/testServer.js';
 
-describe('Socket.IO server', () => {
-  let server: Server;
-  let url: string;
+describe('Socket.IO server (pre-auth, M1 behavior)', () => {
+  let ts: TestServer;
 
   beforeAll(async () => {
-    server = createServer();
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const { port } = server.address() as AddressInfo;
-    url = `http://localhost:${port}`;
+    ts = await startTestServer();
   });
 
-  afterAll(() => {
-    server.close();
+  afterAll(async () => {
+    await ts.close();
   });
 
   it('emits hello on client connect', () => {
     return new Promise<void>((resolve, reject) => {
-      const client: ClientSocket = ioc(url, { transports: ['websocket'] });
+      const client: ClientSocket = ioc(ts.url, { transports: ['websocket'] });
       const timer = setTimeout(() => {
         client.close();
         reject(new Error('timed out waiting for hello'));

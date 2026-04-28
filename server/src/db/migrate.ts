@@ -34,5 +34,6 @@ export function runMigrations(db: Database.Database, migrationsDir: string): voi
       recordApplied.run(file, Date.now());
     });
     apply();
+    console.log(`[migrate] applied ${file}`);
   }
 }

@@ -1,7 +1,12 @@
 import type http from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
+import type Database from 'better-sqlite3';
 
-export function attachSocketIO(httpServer: http.Server): SocketIOServer {
+export interface SocketDeps {
+  db: Database.Database;
+}
+
+export function attachSocketIO(httpServer: http.Server, _deps: SocketDeps): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: { origin: false },
   });
