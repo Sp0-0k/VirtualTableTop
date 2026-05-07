@@ -11,13 +11,17 @@ Single-campaign D&D virtual tabletop. Hosts the visual/spatial layer of play
 ## Development
 
 ```bash
+cp .env.example .env
+# Edit .env and set APP_SECRET to anything (e.g. `openssl rand -hex 32`).
+
 npm install
-npm run dev:server   # in one terminal
-npm run dev:client   # in another terminal
+npm run dev:server   # in one terminal — listens on :3002
+npm run dev:client   # in another — Vite dev server on :5173, proxies API
 ```
 
-Server runs on :3002, client dev server on :5173 (Vite default), proxying
-`/api` and `/socket.io` to the server.
+The Vite dev server proxies `/api` and `/socket.io` to :3002, so open
+`http://localhost:5173/` (player view) or `http://localhost:5173/dm` (DM view).
+There is no Basic Auth gate in dev — that's a Caddy concern, exercised only in prod.
 
 ## Tests
 
