@@ -1,25 +1,65 @@
 # Caddy site block for vtt.5edice.com.
 # Paste this into your existing Caddyfile (or import it via `import` directive).
 # Caddy will provision a TLS cert automatically on first request.
+#
+# Auth model:
+#   /dm and /api/dm/*  → basic_auth with the DM password
+#   / and /api/*       → basic_auth with the shared player password
+#   /socket.io/*       → no basic_auth; the WebSocket handshake authenticates
+#                         via the signed cookies set by /api/dm/bootstrap
+#                         and /api/player/join. Cookies are HMAC-signed, so
+#                         the WS gate is sufficient on its own.
+#
+# Generate password hashes with `caddy hash-password` and paste them below.
+# `header_up -Authorization` strips the Basic Auth credentials before
+# reverse-proxying, so the Node app never sees them.
 
 vtt.5edice.com {
     encode gzip
 
-    # API + Socket.IO → Node. `handle` blocks make each request go to exactly
-    # one handler — without them, `try_files` in the SPA block rewrites the
-    # path before `reverse_proxy` evaluates its matcher, and the WebSocket
-    # upgrade request gets served index.html instead of being proxied.
-    # Caddy v2's reverse_proxy supports WebSocket upgrades automatically.
+    # DM API: gated by DM Basic Auth; proxied to Node.
+    handle /api/dm/* {
+        basic_auth {
+            dm <DM_PASSWORD_HASH>
+        }
+        reverse_proxy localhost:3002 {
+            header_up -Authorization
+        }
+    }
+
+    # Other API routes: gated by player Basic Auth; proxied to Node.
     handle /api/* {
-        reverse_proxy localhost:3002
+        basic_auth {
+            player <PLAYER_PASSWORD_HASH>
+        }
+        reverse_proxy localhost:3002 {
+            header_up -Authorization
+        }
     }
 
+    # Socket.IO: NOT gated by Basic Auth — cookie-on-handshake is the gate.
+    # Caddy v2's reverse_proxy supports WebSocket upgrades automatically.
     handle /socket.io/* {
-        reverse_proxy localhost:3002
+        reverse_proxy localhost:3002 {
+            header_up -Authorization
+        }
     }
 
-    # Everything else: static client with SPA fallback.
+    # DM SPA: gated by DM Basic Auth.
+    handle /dm* {
+        basic_auth {
+            dm <DM_PASSWORD_HASH>
+        }
+        root * /home/ubuntu/services/vtt/public
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Everything else (player SPA).
     handle {
+        basic_auth {
+            player <PLAYER_PASSWORD_HASH>
+        }
         root * /home/ubuntu/services/vtt/public
         try_files {path} /index.html
         file_server
