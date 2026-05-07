@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { io as ioc, type Socket as ClientSocket } from 'socket.io-client';
 import request from 'supertest';
 import { startTestServer, type TestServer } from './helpers/testServer.js';
+import { insertAsset } from '../server/src/db/assets.js';
+import { createPage, setActivePage } from '../server/src/db/pages.js';
 
 async function joinAsPlayer(ts: TestServer, name: string, color: string): Promise<string> {
   const res = await request(ts.server).post('/api/player/join').send({ name, color });
@@ -43,6 +45,33 @@ interface SessionPayload {
   role: string;
   name: string;
   playerId: number | null;
+}
+
+function connectAndCapture<T>(
+  url: string,
+  cookie: string,
+  event: string,
+  timeoutMs = 2000,
+): Promise<{ client: ClientSocket; payload: T }> {
+  return new Promise((resolve, reject) => {
+    const client = ioc(url, {
+      transports: ['websocket'],
+      extraHeaders: { Cookie: cookie },
+      reconnection: false,
+    });
+    const t = setTimeout(() => {
+      client.close();
+      reject(new Error(`timed out before ${event}`));
+    }, timeoutMs);
+    client.once(event, (payload: T) => {
+      clearTimeout(t);
+      resolve({ client, payload });
+    });
+    client.on('connect_error', (err) => {
+      clearTimeout(t);
+      reject(err);
+    });
+  });
 }
 
 function connectAndAwaitSession(
@@ -110,5 +139,55 @@ describe('Socket.IO auth handshake', () => {
     const { signCookie } = await import('../server/src/auth/cookies.js');
     const fakeCookie = `vtt_player_id=${encodeURIComponent(signCookie('99999'))}`;
     await expect(connect(ts.url, fakeCookie)).rejects.toThrow(/not authenticated/i);
+  });
+});
+
+describe('state:full_sync on connection', () => {
+  let ts: TestServer;
+
+  beforeAll(async () => {
+    ts = await startTestServer();
+  });
+
+  afterAll(async () => {
+    await ts.close();
+  });
+
+  it('emits { activePage: null } when no page is active', async () => {
+    const cookie = await bootstrapDm(ts);
+    const { client, payload } = await connectAndCapture<{ activePage: unknown }>(
+      ts.url,
+      cookie,
+      'state:full_sync',
+    );
+    expect(payload.activePage).toBeNull();
+    client.close();
+  });
+
+  it('emits the active page (with resolved background_url) when one exists', async () => {
+    const a = insertAsset(ts.db, {
+      hash: 'syncfix',
+      kind: 'map',
+      originalName: 'm.png',
+      mime: 'image/webp',
+      width: 1,
+      height: 1,
+      sizeBytes: 1,
+    });
+    const p = createPage(ts.db, {
+      name: 'Active',
+      backgroundAssetId: a.id,
+      gridWidthSquares: 20,
+      gridHeightSquares: 15,
+    });
+    setActivePage(ts.db, p.id);
+
+    const cookie = await bootstrapDm(ts);
+    const { client, payload } = await connectAndCapture<{
+      activePage: { id: number; background_url: string } | null;
+    }>(ts.url, cookie, 'state:full_sync');
+    expect(payload.activePage?.id).toBe(p.id);
+    expect(payload.activePage?.background_url).toBe('/assets/syncfix.webp');
+    client.close();
   });
 });
