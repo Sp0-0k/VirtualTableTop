@@ -264,11 +264,8 @@ For events where every recipient receives identical bytes (e.g., `player:joined`
 **Client → server (commands):**
 
 ```
-page:create               DM only
-page:update               DM only
-page:delete               DM only
-page:set_active           DM only — promotes a page to active for everyone
-page:dm_navigate          DM only — DM's private preview, no broadcast
+page:dm_navigate          DM only — DM's private preview, no broadcast (kept on socket
+                          because in M6 it is throttled / repeated mid-prep)
 
 token:create              DM only
 token:update              DM (any field) | player (own token, x/y only)
@@ -282,6 +279,10 @@ fog:clear                 DM only
 
 state:request_full_sync   on reconnect or initial load
 ```
+
+**Note (revised in M3):** Page CRUD (`page:create`, `page:update`, `page:delete`, `page:set_active`) and asset CRUD are HTTP REST under `/api/dm/*` rather than socket commands. Asset upload requires HTTP (multipart); page CRUD is configuration-frequency, not interaction-frequency. Sockets are reserved for high-frequency interaction events (`token:move_*`, `fog:stroke_*`). The broadcast event names below (`page:created`, `state:active_page_changed`, etc.) are unchanged — they still arrive over Socket.IO. See `docs/superpowers/specs/2026-05-07-m3-design.md` §2.
+
+**`state:full_sync`** is *introduced* in M3 with payload `{ activePage }` and *extended* in later milestones to add `tokens`, `fog`, and `players`. The shape listed below reflects the eventual full payload.
 
 **Server → client (events):**
 
