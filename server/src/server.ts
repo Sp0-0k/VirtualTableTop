@@ -2,6 +2,7 @@ import express from 'express';
 import http from 'node:http';
 import type Database from 'better-sqlite3';
 import healthRouter from './routes/health.js';
+import { dmRouter } from './routes/dm.js';
 import { attachSocketIO } from './socket.js';
 
 export interface ServerDeps {
@@ -13,6 +14,7 @@ export function createServer(deps: ServerDeps): http.Server {
 
   app.use(express.json());
   app.use('/api/health', healthRouter);
+  app.use('/api/dm', dmRouter());
 
   const httpServer = http.createServer(app);
   attachSocketIO(httpServer, deps);
