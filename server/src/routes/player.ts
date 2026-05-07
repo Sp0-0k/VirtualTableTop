@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import type Database from 'better-sqlite3';
-import { setSignedCookie } from '../auth/express-cookies.js';
-import { COOKIE_PLAYER, COOKIE_MAX_AGE } from '../auth/constants.js';
-import { createPlayer, findPlayerByName } from '../db/players.js';
+import { setSignedCookie, readSignedCookie } from '../auth/express-cookies.js';
+import { COOKIE_DM, COOKIE_PLAYER, COOKIE_MAX_AGE } from '../auth/constants.js';
+import { createPlayer, findPlayerById, findPlayerByName } from '../db/players.js';
 
 const NAME_MIN = 1;
 const NAME_MAX = 20;
@@ -32,6 +32,22 @@ export function playerRouter(db: Database.Database): Router {
     });
 
     res.json({ player });
+  });
+
+  router.get('/me', (req, res) => {
+    if (readSignedCookie(req, COOKIE_DM) === '1') {
+      res.json({ role: 'dm' });
+      return;
+    }
+    const playerId = readSignedCookie(req, COOKIE_PLAYER);
+    if (playerId !== null) {
+      const player = findPlayerById(db, Number(playerId));
+      if (player) {
+        res.json({ role: 'player', player });
+        return;
+      }
+    }
+    res.json({ role: 'anon' });
   });
 
   return router;
