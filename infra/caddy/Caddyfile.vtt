@@ -17,6 +17,14 @@
 vtt.5edice.com {
     encode gzip
 
+    # Static asset bytes (uploaded maps & thumbs). Served directly from disk —
+    # never touches Node. Hash-based URLs are immutable, so we cache forever.
+    handle_path /assets/* {
+        root * /home/ubuntu/services/vtt/uploads
+        file_server
+        header Cache-Control "public, max-age=31536000, immutable"
+    }
+
     # DM API: gated by DM Basic Auth; proxied to Node.
     handle /api/dm/* {
         basic_auth {
