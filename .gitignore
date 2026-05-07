@@ -17,6 +17,9 @@ public/
 *.sqlite-wal
 *.sqlite-shm
 
+# Local uploads (dev runtime)
+uploads/
+
 # OS / editor
 .DS_Store
 Thumbs.db
