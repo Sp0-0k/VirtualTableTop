@@ -3,6 +3,7 @@ import http from 'node:http';
 import type Database from 'better-sqlite3';
 import healthRouter from './routes/health.js';
 import { dmRouter } from './routes/dm.js';
+import { dmAssetsRouter } from './routes/dm-assets.js';
 import { playerRouter } from './routes/player.js';
 import { attachSocketIO } from './socket.js';
 
@@ -19,7 +20,9 @@ export function createServer(deps: ServerDeps): http.Server {
   app.use('/api', playerRouter(deps.db));
 
   const httpServer = http.createServer(app);
-  attachSocketIO(httpServer, deps);
+  const io = attachSocketIO(httpServer, deps);
+
+  app.use('/api/dm/assets', dmAssetsRouter({ db: deps.db, io }));
 
   return httpServer;
 }
