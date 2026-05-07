@@ -1,76 +1,141 @@
 # Deployment
 
-Production target: AWS EC2 instance running on `vtt.5edice.com`, behind Caddy
-(auto-TLS), supervised by pm2 under the `ubuntu` user. Layout matches the
-existing per-subdomain pattern on the box: `~/services/vtt/`.
+Production target: AWS EC2 instance under the `vtt.5edice.com` subdomain,
+behind Caddy with auto-TLS, supervised by pm2 as the `ubuntu` user.
 
-## Prerequisites (one-time, manual)
+## One-time host setup (M2)
 
-Already in place on the EC2 box: nginx-replaced-by-Caddy, Node, pm2, the
-DNS A record `vtt.5edice.com` pointing at the box.
+Run on the EC2 box.
 
-## One-time setup for this subdomain
-
-1. Add the Caddy site block to your Caddyfile. The contents are in
-   [`infra/caddy/Caddyfile.vtt`](../infra/caddy/Caddyfile.vtt). Either paste
-   them into your main `Caddyfile` or `import` the file from it.
-
-2. Reload Caddy:
+1. **Install dependencies** (skip any already present):
 
    ```bash
-   sudo systemctl reload caddy
-   # or, if running as a non-systemd service:
-   sudo caddy reload --config /etc/caddy/Caddyfile
+   sudo apt update
+   sudo apt install -y caddy nodejs rsync
+   sudo npm install -g pm2
    ```
 
-   On first request to `https://vtt.5edice.com`, Caddy will provision a Let's
-   Encrypt cert automatically.
+2. **Generate Basic Auth password hashes** (Caddy uses bcrypt). On any
+   machine with Caddy installed, run:
 
-## Deploying
+   ```bash
+   caddy hash-password
+   ```
 
-From the dev machine:
+   You'll be prompted twice for a password and given back a `$2a$...` hash.
+   Generate one for the DM password and one for the shared player password.
+
+3. **Install the Caddy site config:**
+
+   ```bash
+   sudo mkdir -p /etc/caddy/sites
+   sudo cp /path/to/repo/infra/caddy/Caddyfile.vtt /etc/caddy/sites/vtt.conf
+   sudo nano /etc/caddy/sites/vtt.conf
+   ```
+
+   Replace `<DM_PASSWORD_HASH>` and `<PLAYER_PASSWORD_HASH>` with the bcrypt
+   strings from step 2. Each placeholder appears in 2 places — search and
+   replace all.
+
+   Make sure the main `/etc/caddy/Caddyfile` includes this directory:
+
+   ```
+   import /etc/caddy/sites/*.conf
+   ```
+
+   Validate and reload:
+
+   ```bash
+   sudo caddy validate --config /etc/caddy/Caddyfile
+   sudo systemctl reload caddy
+   ```
+
+4. **Create the service directory and `.env`:**
+
+   ```bash
+   mkdir -p ~/services/vtt
+   cp /path/to/repo/.env.example ~/services/vtt/.env
+   chmod 600 ~/services/vtt/.env
+   nano ~/services/vtt/.env
+   ```
+
+   Set `APP_SECRET` to the output of `openssl rand -hex 32`. Set
+   `COOKIE_SECURE=1` (cookies will only flow over HTTPS in prod).
+
+5. **Confirm pm2 starts at boot:**
+
+   ```bash
+   pm2 startup
+   # paste the command pm2 prints
+   ```
+
+## Build & deploy
+
+From your dev machine:
 
 ```bash
-bash infra/scripts/deploy.sh -k <pem key> -h vtt.5edice.com
+bash infra/scripts/deploy.sh -k ~/.ssh/your-ec2-key.pem -h vtt.5edice.com
 ```
 
-What the script does:
-1. `npm ci && npm run build` locally — produces `dist/server.js` and `public/`.
-2. Stages `dist/`, `public/`, `package.json`, `package-lock.json` in a temp
-   `build/` directory.
-3. SSHes to the EC2 box, wipes `~/services/vtt/`, scp's the staged bundle in.
-4. `npm ci --omit=dev` on the box (pulls Express, Socket.IO, etc.).
-5. `pm2 start dist/server.js --name vtt` (first time) or `pm2 restart vtt`
-   (subsequent), then `pm2 save`.
+The script:
 
-The Node process listens on port 3002; Caddy serves the static client out of
-`/home/ubuntu/services/vtt/public` and reverse-proxies `/api/*` and
-`/socket.io/*` to `127.0.0.1:3002` (WebSocket upgrades handled automatically).
+- Builds (`npm ci && npm run build`)
+- rsyncs `dist/`, `public/`, `migrations/`, `ecosystem.config.cjs`,
+  `package.json`, `package-lock.json` to `~/services/vtt/`
+- Preserves the existing `.env` and `vtt.sqlite*` on the host
+- Runs `npm ci --omit=dev` on the host
+- Runs `pm2 startOrReload ecosystem.config.cjs && pm2 save`
+
+The migration runner runs at server startup — no separate migration step.
 
 ## First-deploy verification
 
-After the script finishes, on your local machine:
+After deploying:
 
 ```bash
 curl https://vtt.5edice.com/api/health
+# → 401 (Basic Auth challenge from Caddy — this is correct)
+
+curl -u player:<player-password> https://vtt.5edice.com/api/health
 # → {"ok":true}
 ```
 
-Then load `https://vtt.5edice.com` in a browser. The page should show:
+In a browser:
 
-> Socket: connected — server says "connected"
+1. Visit `https://vtt.5edice.com/dm`. Browser prompts for credentials. Use
+   `dm` as the username and the DM password.
+2. Page loads, JS calls `/api/dm/bootstrap`, cookie is set, page shows
+   `Role: DM`.
+3. Open another browser (or private window) and visit `https://vtt.5edice.com/`.
+   Prompt for player credentials (`player` + shared password).
+4. Page loads, name-picker appears. Submit a name.
+5. Page shows `Hi, <name>!`.
 
-If anything fails, check on the EC2 box:
+## Troubleshooting
 
-- `pm2 logs vtt --lines 100`              — Node app logs
-- `pm2 status`                            — process state
-- `sudo journalctl -u caddy -n 100`       — Caddy logs (incl. cert acquisition)
+- `pm2 logs vtt` — Node process logs.
+- `sudo journalctl -u caddy -n 100` — Caddy logs.
+- `sudo caddy validate --config /etc/caddy/Caddyfile` — config check.
+- If APP_SECRET isn't set, the Node process exits at startup with a clear
+  error. Check `~/services/vtt/.env`.
+- If you see `WebSocket connection failed`, confirm the `/socket.io/` block
+  is in the Caddy site config and that `pm2 status` shows vtt running.
 
-## What this milestone (M1) does NOT include
+## Rotating credentials
 
-- Auth (no Basic Auth gates yet — `/dm` and `/` are publicly reachable).
-- The migrations runner (`scripts/migrate.js`).
-- SQLite, image uploads, anything stateful.
-- Env file management (no `APP_SECRET` yet — comes in M2 along with auth).
+- **Basic Auth password:** generate a new bcrypt hash with `caddy
+  hash-password`, paste into `/etc/caddy/sites/vtt.conf`,
+  `sudo systemctl reload caddy`. No Node restart needed.
+- **APP_SECRET:** edit `~/services/vtt/.env`, then `pm2 restart vtt`. This
+  invalidates *all* existing signed cookies — every connected DM/player
+  must re-authenticate. That's the only revocation lever we have.
 
-These land in M2+.
+## What this milestone (M2) does NOT include
+
+- Asset upload pipeline (sharp, image dedup) — M3.
+- Pages / map management — M3.
+- Tokens, drag-to-move, ownership rules — M4.
+- Fog of war — M5.
+- DM private preview, reconnect resync — M6.
+
+These land in subsequent plans.
