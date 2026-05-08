@@ -1,5 +1,5 @@
 import type { Socket } from 'socket.io-client';
-import type { Token, Player, ApiPage } from './api.js';
+import type { Token, Player, ApiPage, ApiAsset } from './api.js';
 
 interface FullSyncPayload {
   activePage: ApiPage | null;
@@ -13,7 +13,7 @@ export interface DmHandlers {
   onPageCreated: (p: { page: ApiPage }) => void;
   onPageUpdated: (p: { page: ApiPage }) => void;
   onPageDeleted: (p: { id: number }) => void;
-  onAssetCreated: (p: { asset: { id: number } }) => void;
+  onAssetCreated: (p: { asset: ApiAsset }) => void;
   onAssetDeleted: (p: { id: number; kind: 'map' | 'token' }) => void;
   onTokenCreated: (p: Token) => void;
   onTokenUpdated: (p: Token) => void;
