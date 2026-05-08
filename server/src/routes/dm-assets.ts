@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { Router, type ErrorRequestHandler } from 'express';
 import multer, { MulterError } from 'multer';
 import type Database from 'better-sqlite3';
@@ -8,11 +10,14 @@ import {
   assetPath,
   atomicWrite,
   ensureUploadsDir,
+  getUploadsDir,
   thumbPath,
   totalUploadsBytes,
 } from '../assets/storage.js';
 import {
   findAssetByHash,
+  findAssetById,
+  findReferences,
   insertAsset,
   listAssets,
   type AssetKind,
@@ -106,6 +111,40 @@ export function dmAssetsRouter(deps: DmAssetsDeps): Router {
       }
     },
   );
+
+  router.delete('/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'invalid id' });
+    const asset = findAssetById(deps.db, id);
+    if (!asset) return res.status(404).json({ error: 'not found' });
+
+    const tx = deps.db.transaction(() => {
+      const refs = findReferences(deps.db, id);
+      if (refs.pages.length || refs.tokens.length) return { ok: false as const, refs };
+      deps.db.prepare('DELETE FROM assets WHERE id = ?').run(id);
+      return { ok: true as const };
+    });
+    let result;
+    try {
+      result = (tx as unknown as { immediate: () => { ok: boolean; refs?: ReturnType<typeof findReferences> } }).immediate();
+    } catch (e) {
+      const refs = findReferences(deps.db, id);
+      return res.status(409).json({ references: refs });
+    }
+    if (!result.ok) return res.status(409).json({ references: result.refs });
+
+    const dir = getUploadsDir();
+    for (const suffix of ['.webp', '.thumb.webp']) {
+      try {
+        await fs.unlink(path.join(dir, `${asset.hash}${suffix}`));
+      } catch (e: unknown) {
+        const code = (e as NodeJS.ErrnoException)?.code;
+        if (code !== 'ENOENT') throw e;
+      }
+    }
+    deps.io.to('dm').emit('asset:deleted', { id, kind: asset.kind });
+    return res.status(204).end();
+  });
 
   router.use(multerErrorHandler);
 
