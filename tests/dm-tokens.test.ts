@@ -100,4 +100,59 @@ describe('DM tokens routes', () => {
     expect(res.body.tokens).toHaveLength(1);
     expect(res.body.tokens[0].page_id).toBe(p1);
   });
+
+  it('PATCH updates a subset of fields and broadcasts', async () => {
+    const mapId = await uploadAsset(ts, dm, 'map');
+    const tokAsset = await uploadAsset(ts, dm, 'token');
+    const pageId = await createPage(ts, dm, mapId);
+    const create = await request(ts.server).post('/api/dm/tokens').set('Cookie', dm).send({
+      page_id: pageId, asset_id: tokAsset, x: 0, y: 0,
+    });
+    const id = create.body.token.id;
+    const res = await request(ts.server).patch(`/api/dm/tokens/${id}`).set('Cookie', dm).send({
+      name: 'Goblin', current_hp: 5, max_hp: 10, conditions: ['poisoned'],
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.token.name).toBe('Goblin');
+    expect(res.body.token.current_hp).toBe(5);
+    expect(res.body.token.conditions).toEqual(['poisoned']);
+  });
+
+  it('PATCH 404 for unknown id', async () => {
+    const r = await request(ts.server).patch('/api/dm/tokens/9999').set('Cookie', dm).send({ name: 'x' });
+    expect(r.status).toBe(404);
+  });
+
+  it('PATCH rejects size out of bounds', async () => {
+    const mapId = await uploadAsset(ts, dm, 'map');
+    const tokAsset = await uploadAsset(ts, dm, 'token');
+    const pageId = await createPage(ts, dm, mapId);
+    const create = await request(ts.server).post('/api/dm/tokens').set('Cookie', dm).send({
+      page_id: pageId, asset_id: tokAsset, x: 0, y: 0,
+    });
+    const id = create.body.token.id;
+    const r = await request(ts.server).patch(`/api/dm/tokens/${id}`).set('Cookie', dm).send({ size_squares: 9 });
+    expect(r.status).toBe(400);
+  });
+
+  it('DELETE removes the token', async () => {
+    const mapId = await uploadAsset(ts, dm, 'map');
+    const tokAsset = await uploadAsset(ts, dm, 'token');
+    const pageId = await createPage(ts, dm, mapId);
+    const create = await request(ts.server).post('/api/dm/tokens').set('Cookie', dm).send({
+      page_id: pageId, asset_id: tokAsset, x: 0, y: 0,
+    });
+    const id = create.body.token.id;
+    const del = await request(ts.server).delete(`/api/dm/tokens/${id}`).set('Cookie', dm);
+    expect(del.status).toBe(204);
+    const get = await request(ts.server)
+      .get(`/api/dm/tokens?page_id=${pageId}`)
+      .set('Cookie', dm);
+    expect(get.body.tokens).toHaveLength(0);
+  });
+
+  it('DELETE 404 for unknown id', async () => {
+    const r = await request(ts.server).delete('/api/dm/tokens/9999').set('Cookie', dm);
+    expect(r.status).toBe(404);
+  });
 });
