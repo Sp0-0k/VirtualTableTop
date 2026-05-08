@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { Token, Player } from '../api.js';
 
 export interface ApiAsset {
   id: number;
@@ -28,6 +29,11 @@ interface DmState {
   pages: ApiPage[];
   selectedPageId: number | null;
   activePageId: number | null;
+  tokens: Record<number, Token>;
+  players: Player[];
+  selectedTokenId: number | null;
+  dragging: Record<number, { x: number; y: number }>;
+  incomingMove: Record<number, { x: number; y: number }>;
 
   setAssets: (a: ApiAsset[]) => void;
   upsertAsset: (a: ApiAsset) => void;
@@ -36,6 +42,15 @@ interface DmState {
   removePage: (id: number) => void;
   selectPage: (id: number | null) => void;
   setActivePageId: (id: number | null) => void;
+  setTokens: (tokens: Token[]) => void;
+  upsertToken: (t: Token) => void;
+  removeToken: (id: number) => void;
+  setPlayers: (p: Player[]) => void;
+  selectToken: (id: number | null) => void;
+  setDragging: (id: number, pos: { x: number; y: number }) => void;
+  clearDragging: (id: number) => void;
+  setIncomingMove: (id: number, pos: { x: number; y: number }) => void;
+  clearIncomingMove: (id: number) => void;
 }
 
 export const useDmStore = create<DmState>((set) => ({
@@ -43,6 +58,11 @@ export const useDmStore = create<DmState>((set) => ({
   pages: [],
   selectedPageId: null,
   activePageId: null,
+  tokens: {},
+  players: [],
+  selectedTokenId: null,
+  dragging: {},
+  incomingMove: {},
 
   setAssets: (assets) => set({ assets }),
   upsertAsset: (asset) =>
@@ -92,4 +112,25 @@ export const useDmStore = create<DmState>((set) => ({
       activePageId: id,
       pages: s.pages.map((p) => ({ ...p, is_active: p.id === id ? 1 : 0 })),
     })),
+
+  setTokens: (tokens) => set({
+    tokens: Object.fromEntries(tokens.map((t) => [t.id, t])),
+  }),
+  upsertToken: (t) => set((s) => ({ tokens: { ...s.tokens, [t.id]: t } })),
+  removeToken: (id) => set((s) => {
+    const { [id]: _drop, ...rest } = s.tokens;
+    return { tokens: rest, selectedTokenId: s.selectedTokenId === id ? null : s.selectedTokenId };
+  }),
+  setPlayers: (players) => set({ players }),
+  selectToken: (selectedTokenId) => set({ selectedTokenId }),
+  setDragging: (id, pos) => set((s) => ({ dragging: { ...s.dragging, [id]: pos } })),
+  clearDragging: (id) => set((s) => {
+    const { [id]: _drop, ...rest } = s.dragging;
+    return { dragging: rest };
+  }),
+  setIncomingMove: (id, pos) => set((s) => ({ incomingMove: { ...s.incomingMove, [id]: pos } })),
+  clearIncomingMove: (id) => set((s) => {
+    const { [id]: _drop, ...rest } = s.incomingMove;
+    return { incomingMove: rest };
+  }),
 }));
