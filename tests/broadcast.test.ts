@@ -52,7 +52,11 @@ describe('broadcast helpers', () => {
   });
 
   it('buildFullSync returns { activePage: null } when nothing is active', () => {
-    expect(buildFullSync(db)).toEqual({ activePage: null });
+    const dmSocket = { data: { role: 'dm' as const, name: 'DM' as const, playerId: null } };
+    const sync = buildFullSync(db, dmSocket);
+    expect(sync.activePage).toBeNull();
+    expect(sync.tokens).toEqual([]);
+    expect(sync.players).toEqual([]);
   });
 
   it('buildFullSync returns the resolved active page when one exists', () => {
@@ -72,7 +76,8 @@ describe('broadcast helpers', () => {
       gridHeightSquares: 15,
     });
     setActivePage(db, p.id);
-    const sync = buildFullSync(db);
+    const dmSocket = { data: { role: 'dm' as const, name: 'DM' as const, playerId: null } };
+    const sync = buildFullSync(db, dmSocket);
     expect(sync.activePage?.id).toBe(p.id);
     expect(sync.activePage?.background_url).toBe('/assets/h.webp');
     expect(sync.activePage?.is_active).toBe(1);

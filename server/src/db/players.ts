@@ -51,3 +51,11 @@ export function findPlayerByName(db: Database.Database, name: string): Player | 
     .get(name) as PlayerRow | undefined;
   return row ? rowToPlayer(row) : null;
 }
+
+export function listPlayersForSync(
+  db: Database.Database,
+): { id: number; name: string; color: string }[] {
+  return db
+    .prepare('SELECT id, name, color FROM players ORDER BY id ASC')
+    .all() as { id: number; name: string; color: string }[];
+}

@@ -50,7 +50,7 @@ export function attachSocketIO(httpServer: http.Server, deps: SocketDeps): AppSo
   io.on('connection', (socket) => {
     if (socket.data.role === 'dm') socket.join('dm');
     socket.emit('session', socket.data);
-    socket.emit('state:full_sync', buildFullSync(deps.db));
+    socket.emit('state:full_sync', buildFullSync(deps.db, socket));
   });
 
   return io;

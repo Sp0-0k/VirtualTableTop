@@ -1,8 +1,11 @@
 import type Database from 'better-sqlite3';
+import type { Server as SocketIOServer } from 'socket.io';
 import { findAssetById } from './db/assets.js';
 import { findActivePage, type Page } from './db/pages.js';
 import type { AppSocketIOServer } from './socket.js';
 import type { Token } from './db/tokens.js';
+import { listTokensByPage } from './db/tokens.js';
+import { listPlayersForSync } from './db/players.js';
 
 export interface PagePayload {
   id: number;
@@ -17,6 +20,8 @@ export interface PagePayload {
 
 export interface FullSyncPayload {
   activePage: PagePayload | null;
+  tokens: TokenPayload[];
+  players: { id: number; name: string; color: string }[];
 }
 
 export function resolvePageWithUrl(db: Database.Database, page: Page): PagePayload {
@@ -37,9 +42,48 @@ export function resolvePageWithUrl(db: Database.Database, page: Page): PagePaylo
   };
 }
 
-export function buildFullSync(db: Database.Database): FullSyncPayload {
+export function buildFullSync(db: Database.Database, socket: SocketLike): FullSyncPayload {
   const active = findActivePage(db);
-  return { activePage: active ? resolvePageWithUrl(db, active) : null };
+  if (!active) return { activePage: null, tokens: [], players: [] };
+  const pagePayload = resolvePageWithUrl(db, active);
+  const players = listPlayersForSync(db);
+  const rawTokens = listTokensByPage(db, active.id);
+  const tokens: TokenPayload[] = [];
+  for (const t of rawTokens) {
+    const asset = findAssetById(db, t.assetId);
+    if (!asset) continue;
+    const url = `/assets/${asset.hash}.webp`;
+    const thumb = `/assets/${asset.hash}.thumb.webp`;
+    const filtered = tokenForSocket(t, socket, url, thumb);
+    if (filtered) tokens.push(filtered);
+  }
+  return { activePage: pagePayload, tokens, players };
+}
+
+type IoLike = Pick<SocketIOServer, 'sockets'>;
+
+export function broadcastTokenEvent(
+  io: IoLike,
+  db: Database.Database,
+  event: 'token:created' | 'token:updated' | 'token:moved' | 'token:moving' | 'token:deleted',
+  token: Token,
+  opts?: { skipSocketId?: string },
+): void {
+  const asset = findAssetById(db, token.assetId);
+  const url = asset ? `/assets/${asset.hash}.webp` : '';
+  const thumb = asset ? `/assets/${asset.hash}.thumb.webp` : '';
+  for (const socket of io.sockets.sockets.values()) {
+    if (opts?.skipSocketId && socket.id === opts.skipSocketId) continue;
+    const sockLike = socket as unknown as SocketLike;
+    const payload = tokenForSocket(token, sockLike, url, thumb);
+    if (payload === null) {
+      if (event === 'token:updated') {
+        socket.emit('token:deleted', { id: token.id, page_id: token.pageId });
+      }
+      continue;
+    }
+    socket.emit(event, payload);
+  }
 }
 
 export function broadcastActivePageChanged(
