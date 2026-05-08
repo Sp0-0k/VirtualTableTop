@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { findAssetById } from './db/assets.js';
 import { findActivePage, type Page } from './db/pages.js';
 import type { AppSocketIOServer } from './socket.js';
+import type { Token } from './db/tokens.js';
 
 export interface PagePayload {
   id: number;
@@ -46,4 +47,78 @@ export function broadcastActivePageChanged(
   page: PagePayload | null,
 ): void {
   io.emit('state:active_page_changed', { activePage: page });
+}
+
+export interface TokenPayload {
+  id: number;
+  page_id: number;
+  asset_id: number;
+  asset_url: string;
+  asset_thumb_url: string;
+  name: string | null;
+  x: number;
+  y: number;
+  size_squares: number;
+  owner_player_id: number | null;
+  conditions: string[];
+  z_index: number;
+  // DM-only
+  hidden?: 0 | 1;
+  hp_visible_to_players?: 0 | 1;
+  // HP fields — undefined when filtered for hp-hidden
+  current_hp?: number | null;
+  max_hp?: number | null;
+}
+
+export interface SocketLike {
+  data: { role: 'dm' | 'player'; name: string; playerId: number | null };
+}
+
+export function tokenForSocket(
+  token: Token,
+  socket: SocketLike,
+  assetUrl: string,
+  assetThumbUrl: string,
+): TokenPayload | null {
+  if (socket.data.role === 'dm') {
+    return {
+      id: token.id,
+      page_id: token.pageId,
+      asset_id: token.assetId,
+      asset_url: assetUrl,
+      asset_thumb_url: assetThumbUrl,
+      name: token.name,
+      x: token.x,
+      y: token.y,
+      size_squares: token.sizeSquares,
+      owner_player_id: token.ownerPlayerId,
+      hidden: token.hidden,
+      current_hp: token.currentHp,
+      max_hp: token.maxHp,
+      conditions: token.conditions,
+      hp_visible_to_players: token.hpVisibleToPlayers,
+      z_index: token.zIndex,
+    };
+  }
+  // player
+  if (token.hidden) return null;
+  const out: TokenPayload = {
+    id: token.id,
+    page_id: token.pageId,
+    asset_id: token.assetId,
+    asset_url: assetUrl,
+    asset_thumb_url: assetThumbUrl,
+    name: token.name,
+    x: token.x,
+    y: token.y,
+    size_squares: token.sizeSquares,
+    owner_player_id: token.ownerPlayerId,
+    conditions: token.conditions,
+    z_index: token.zIndex,
+  };
+  if (token.hpVisibleToPlayers) {
+    out.current_hp = token.currentHp;
+    out.max_hp = token.maxHp;
+  }
+  return out;
 }
