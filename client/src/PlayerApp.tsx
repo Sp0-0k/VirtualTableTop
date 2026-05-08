@@ -1,16 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { socket } from './socket.js';
-import { getMe, type Player, type ApiPage } from './api.js';
+import { getMe, type Player } from './api.js';
 import NamePicker from './NamePicker.js';
-import PlayerCanvas from './player/PlayerCanvas.js';
+import { Canvas } from './canvas/Canvas.js';
 import { usePlayerStore } from './stores/playerStore.js';
+import { attachPlayerListeners } from './socketListeners.js';
 
 type Phase = 'loading' | 'name-picker' | 'connecting' | 'connected';
 
 export default function PlayerApp() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [player, setPlayer] = useState<Player | null>(null);
-  const setActivePage = usePlayerStore((s) => s.setActivePage);
+
+  const activePage = usePlayerStore((s) => s.activePage);
+  const tokens = usePlayerStore((s) => Object.values(s.tokens));
+  const players = usePlayerStore((s) => s.players);
+  const dragging = usePlayerStore((s) => s.dragging);
+  const incomingMove = usePlayerStore((s) => s.incomingMove);
+
+  const movableTokenIds = useMemo(
+    () =>
+      player
+        ? new Set(tokens.filter((t) => t.owner_player_id === player.id).map((t) => t.id))
+        : new Set<number>(),
+    [tokens, player],
+  );
+
+  useEffect(() => {
+    if (player) usePlayerStore.getState().setMyPlayerId(player.id);
+  }, [player]);
 
   useEffect(() => {
     getMe()
@@ -30,25 +48,37 @@ export default function PlayerApp() {
 
     const onConnect = () => setPhase('connected');
     const onDisconnect = () => setPhase('connecting');
-    const onFullSync = (payload: { activePage: ApiPage | null }) => {
-      setActivePage(payload.activePage);
-    };
-    const onActiveChanged = (payload: { activePage: ApiPage | null }) => {
-      setActivePage(payload.activePage);
-    };
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
-    socket.on('state:full_sync', onFullSync);
-    socket.on('state:active_page_changed', onActiveChanged);
+
+    const detach = attachPlayerListeners(socket, {
+      onFullSync: (p) => {
+        usePlayerStore.getState().setActivePage(p.activePage);
+        usePlayerStore.getState().setPlayers(p.players);
+        usePlayerStore.getState().setTokens(p.tokens);
+      },
+      onActivePageChanged: ({ activePage }) =>
+        usePlayerStore.getState().setActivePage(activePage),
+      onTokenCreated: (t) => usePlayerStore.getState().upsertToken(t),
+      onTokenUpdated: (t) => usePlayerStore.getState().upsertToken(t),
+      onTokenDeleted: ({ id }) => usePlayerStore.getState().removeToken(id),
+      onTokenMoving: ({ id, x, y }) =>
+        usePlayerStore.getState().setIncomingMove(id, { x, y }),
+      onTokenMoved: ({ id, x, y }) => {
+        const t = usePlayerStore.getState().tokens[id];
+        if (t) usePlayerStore.getState().upsertToken({ ...t, x, y });
+        usePlayerStore.getState().clearIncomingMove(id);
+        usePlayerStore.getState().clearDragging(id);
+      },
+    });
 
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
-      socket.off('state:full_sync', onFullSync);
-      socket.off('state:active_page_changed', onActiveChanged);
+      detach();
     };
-  }, [setActivePage]);
+  }, []);
 
   function handleJoined(p: Player) {
     setPlayer(p);
@@ -64,6 +94,10 @@ export default function PlayerApp() {
       </main>
     );
   }
+
+  const otherPlayers = player
+    ? players.filter((p) => p.id !== player.id)
+    : [];
 
   return (
     <div
@@ -90,10 +124,39 @@ export default function PlayerApp() {
         {player && (
           <span style={{ marginLeft: 'auto' }}>
             Hi, <strong style={{ color: player.color }}>{player.name}</strong>
+            {' — '}
+            {otherPlayers.length > 0
+              ? otherPlayers.map((p) => p.name).join(', ')
+              : 'you are alone'}
           </span>
         )}
       </header>
-      <PlayerCanvas />
+      <main style={{ flex: 1, position: 'relative' }}>
+        {player && activePage ? (
+          <Canvas
+            page={activePage}
+            tokens={tokens}
+            players={players}
+            movableTokenIds={movableTokenIds}
+            selectable={false}
+            selectedTokenId={null}
+            dragging={dragging}
+            incomingMove={incomingMove}
+            onMovePreview={(id, x, y) => {
+              usePlayerStore.getState().setDragging(id, { x, y });
+              socket.emit('token:move_preview', { id, x, y });
+            }}
+            onMoveCommit={(id, x, y) => {
+              usePlayerStore.getState().setDragging(id, { x, y });
+              socket.emit('token:move_commit', { id, x, y });
+            }}
+          />
+        ) : (
+          <div style={{ padding: 24, color: '#888' }}>
+            {player ? 'Waiting for the DM…' : 'Connecting…'}
+          </div>
+        )}
+      </main>
     </div>
   );
 }
