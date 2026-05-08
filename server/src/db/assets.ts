@@ -96,3 +96,20 @@ export function listAssets(db: Database.Database, kind: AssetKind): Asset[] {
     .all(kind) as AssetRow[];
   return rows.map(rowToAsset);
 }
+
+export interface AssetReferences {
+  pages: { id: number; name: string }[];
+  tokens: { id: number; name: string | null; pageId: number }[];
+}
+
+export function findReferences(db: Database.Database, assetId: number): AssetReferences {
+  const pages = db
+    .prepare('SELECT id, name FROM pages WHERE background_asset_id = ?')
+    .all(assetId) as { id: number; name: string }[];
+  const tokens = (
+    db
+      .prepare('SELECT id, name, page_id FROM tokens WHERE asset_id = ?')
+      .all(assetId) as { id: number; name: string | null; page_id: number }[]
+  ).map((r) => ({ id: r.id, name: r.name, pageId: r.page_id }));
+  return { pages, tokens };
+}
