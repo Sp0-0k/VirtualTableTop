@@ -242,3 +242,17 @@ export async function deleteToken(id: number): Promise<void> {
   const res = await fetch(`/api/dm/tokens/${id}`, { method: 'DELETE', credentials: 'include' });
   if (res.status !== 204) throw new Error(`deleteToken failed: ${res.status}`);
 }
+
+export async function patchPage(id: number, patch: Partial<{
+  name: string; background_asset_id: number | null;
+  grid_width_squares: number; grid_height_squares: number; sort_order: number;
+}>): Promise<ApiPage> {
+  const res = await fetch(`/api/dm/pages/${id}`, {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`patchPage failed: ${res.status}`);
+  const body = await res.json();
+  return body.page;
+}
