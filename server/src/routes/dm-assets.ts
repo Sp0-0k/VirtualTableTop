@@ -61,10 +61,6 @@ export function dmAssetsRouter(deps: DmAssetsDeps): Router {
           return;
         }
         const kind: AssetKind = req.body.kind === 'token' ? 'token' : 'map';
-        if (kind !== 'map') {
-          res.status(400).json({ error: 'only map uploads supported in M3' });
-          return;
-        }
 
         if (totalUploadsBytes() > MAX_UPLOADS_BYTES) {
           res.status(507).json({ error: 'disk quota exceeded' });

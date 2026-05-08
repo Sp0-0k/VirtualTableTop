@@ -5,6 +5,7 @@ import healthRouter from './routes/health.js';
 import { dmRouter } from './routes/dm.js';
 import { dmAssetsRouter } from './routes/dm-assets.js';
 import { dmPagesRouter } from './routes/dm-pages.js';
+import { dmTokensRouter } from './routes/dm-tokens.js';
 import { playerRouter } from './routes/player.js';
 import { attachSocketIO } from './socket.js';
 import { ensureUploadsDir, getUploadsDir } from './assets/storage.js';
@@ -39,6 +40,7 @@ export function createServer(deps: ServerDeps): http.Server {
 
   app.use('/api/dm/assets', dmAssetsRouter({ db: deps.db, io }));
   app.use('/api/dm/pages', dmPagesRouter({ db: deps.db, io }));
+  app.use('/api/dm/tokens', dmTokensRouter({ db: deps.db, io }));
   app.use('/api', playerRouter(deps.db));
 
   return httpServer;
