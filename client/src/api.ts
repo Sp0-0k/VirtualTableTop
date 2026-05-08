@@ -135,3 +135,110 @@ export async function setActivePage(id: number): Promise<ApiPage> {
   const body = await res.json();
   return body.page;
 }
+
+export interface Token {
+  id: number;
+  page_id: number;
+  asset_id: number;
+  asset_url: string;
+  asset_thumb_url: string;
+  name: string | null;
+  x: number;
+  y: number;
+  size_squares: number;
+  owner_player_id: number | null;
+  conditions: string[];
+  z_index: number;
+  hidden?: 0 | 1;
+  hp_visible_to_players?: 0 | 1;
+  current_hp?: number | null;
+  max_hp?: number | null;
+}
+
+export async function listTokenAssets(): Promise<ApiAsset[]> {
+  const res = await fetch('/api/dm/assets?kind=token', { credentials: 'include' });
+  if (!res.ok) throw new Error(`listTokenAssets failed: ${res.status}`);
+  const body = await res.json();
+  return body.assets;
+}
+
+export async function uploadTokenAsset(file: File): Promise<ApiAsset> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('kind', 'token');
+  const res = await fetch('/api/dm/assets/upload', {
+    method: 'POST', credentials: 'include', body: fd,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `upload failed: ${res.status}`);
+  }
+  const body = await res.json();
+  return body.asset;
+}
+
+export interface DeleteAssetConflict {
+  references: {
+    pages: { id: number; name: string }[];
+    tokens: { id: number; name: string | null; pageId: number }[];
+  };
+}
+
+export async function deleteAsset(id: number): Promise<void> {
+  const res = await fetch(`/api/dm/assets/${id}`, { method: 'DELETE', credentials: 'include' });
+  if (res.status === 204) return;
+  if (res.status === 409) {
+    const body = (await res.json()) as DeleteAssetConflict;
+    const err = new Error('asset is in use') as Error & DeleteAssetConflict;
+    err.references = body.references;
+    throw err;
+  }
+  throw new Error(`deleteAsset failed: ${res.status}`);
+}
+
+export async function listTokens(pageId: number): Promise<Token[]> {
+  const res = await fetch(`/api/dm/tokens?page_id=${pageId}`, { credentials: 'include' });
+  if (!res.ok) throw new Error(`listTokens failed: ${res.status}`);
+  const body = await res.json();
+  return body.tokens;
+}
+
+export async function createToken(input: {
+  page_id: number; asset_id: number; x: number; y: number;
+  size_squares?: number; name?: string | null;
+}): Promise<Token> {
+  const res = await fetch('/api/dm/tokens', {
+    method: 'POST', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `createToken failed: ${res.status}`);
+  }
+  const body = await res.json();
+  return body.token;
+}
+
+export async function patchToken(id: number, patch: Partial<{
+  name: string | null; owner_player_id: number | null; size_squares: number;
+  hidden: 0 | 1; current_hp: number | null; max_hp: number | null;
+  conditions: string[]; hp_visible_to_players: 0 | 1; x: number; y: number; z_index: number;
+}>): Promise<Token> {
+  const res = await fetch(`/api/dm/tokens/${id}`, {
+    method: 'PATCH', credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `patchToken failed: ${res.status}`);
+  }
+  const body = await res.json();
+  return body.token;
+}
+
+export async function deleteToken(id: number): Promise<void> {
+  const res = await fetch(`/api/dm/tokens/${id}`, { method: 'DELETE', credentials: 'include' });
+  if (res.status !== 204) throw new Error(`deleteToken failed: ${res.status}`);
+}
