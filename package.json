@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Single-campaign D&D virtual tabletop",
   "scripts": {
-    "dev:server": "node --import tsx --watch server/src/main.ts",
+    "dev:server": "node --env-file=.env --import tsx --watch server/src/main.ts",
     "dev:client": "vite",
     "build:server": "node esbuild.config.mjs",
     "build:client": "vite build",
