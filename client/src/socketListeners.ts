@@ -1,5 +1,18 @@
 import type { Socket } from 'socket.io-client';
-import type { Token, Player, ApiPage, ApiAsset } from './api.js';
+import type { Token, Player, ApiPage, ApiAsset, FogStroke } from './api.js';
+
+export interface FogStrokingPayload {
+  page_id: number;
+  mode: 'reveal' | 'hide';
+  shape: 'brush' | 'rect';
+  points: [number, number][];
+  radius: number;
+}
+export interface FogStrokeAddedPayload {
+  page_id: number;
+  stroke: FogStroke;
+}
+export interface FogClearedPayload { page_id: number }
 
 interface FullSyncPayload {
   activePage: ApiPage | null;
@@ -20,6 +33,9 @@ export interface DmHandlers {
   onTokenDeleted: (p: { id: number; page_id: number }) => void;
   onTokenMoving: (p: { id: number; x: number; y: number; by?: number | 'dm' }) => void;
   onTokenMoved: (p: { id: number; x: number; y: number }) => void;
+  onFogStroking?: (p: FogStrokingPayload) => void;
+  onFogStrokeAdded: (p: FogStrokeAddedPayload) => void;
+  onFogCleared: (p: FogClearedPayload) => void;
 }
 
 export function attachDmListeners(socket: Socket, h: DmHandlers): () => void {
@@ -36,6 +52,9 @@ export function attachDmListeners(socket: Socket, h: DmHandlers): () => void {
     ['token:deleted', h.onTokenDeleted as never],
     ['token:moving', h.onTokenMoving as never],
     ['token:moved', h.onTokenMoved as never],
+    ['fog:stroking', (h.onFogStroking ?? (() => {})) as never],
+    ['fog:stroke_added', h.onFogStrokeAdded as never],
+    ['fog:cleared', h.onFogCleared as never],
   ];
   for (const [evt, fn] of wired) socket.on(evt, fn);
   return () => { for (const [evt, fn] of wired) socket.off(evt, fn); };
@@ -49,6 +68,8 @@ export interface PlayerHandlers {
   onTokenDeleted: (p: { id: number; page_id: number }) => void;
   onTokenMoving: (p: { id: number; x: number; y: number; by?: number | 'dm' }) => void;
   onTokenMoved: (p: { id: number; x: number; y: number }) => void;
+  onFogStrokeAdded: (p: FogStrokeAddedPayload) => void;
+  onFogCleared: (p: FogClearedPayload) => void;
 }
 
 export function attachPlayerListeners(socket: Socket, h: PlayerHandlers): () => void {
@@ -60,6 +81,8 @@ export function attachPlayerListeners(socket: Socket, h: PlayerHandlers): () => 
     ['token:deleted', h.onTokenDeleted as never],
     ['token:moving', h.onTokenMoving as never],
     ['token:moved', h.onTokenMoved as never],
+    ['fog:stroke_added', h.onFogStrokeAdded as never],
+    ['fog:cleared', h.onFogCleared as never],
   ];
   for (const [evt, fn] of wired) socket.on(evt, fn);
   return () => { for (const [evt, fn] of wired) socket.off(evt, fn); };

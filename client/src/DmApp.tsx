@@ -90,6 +90,9 @@ export default function DmApp() {
         useDmStore.getState().clearIncomingMove(id);
         useDmStore.getState().clearDragging(id);
       },
+      // TODO(Task 12): wire fog handlers
+      onFogStrokeAdded: () => {},
+      onFogCleared: () => {},
     });
 
     return () => {

@@ -72,6 +72,9 @@ export default function PlayerApp() {
         usePlayerStore.getState().clearIncomingMove(id);
         usePlayerStore.getState().clearDragging(id);
       },
+      // TODO(Task 12): wire fog handlers
+      onFogStrokeAdded: () => {},
+      onFogCleared: () => {},
     });
 
     return () => {
