@@ -41,6 +41,9 @@ describe('Canvas scene graph', () => {
           selectedTokenId={null}
           dragging={{}}
           incomingMove={{}}
+          role="dm"
+          fogStrokes={[]}
+          fogInProgress={null}
         />
       </div>,
     );
@@ -62,6 +65,9 @@ describe('Canvas scene graph', () => {
           selectedTokenId={null}
           dragging={{}}
           incomingMove={{}}
+          role="dm"
+          fogStrokes={[]}
+          fogInProgress={null}
         />
       </div>,
     );
@@ -84,6 +90,9 @@ describe('Canvas scene graph', () => {
           selectedTokenId={9}
           dragging={{}}
           incomingMove={{}}
+          role="dm"
+          fogStrokes={[]}
+          fogInProgress={null}
         />
       </div>,
     );
@@ -109,6 +118,9 @@ describe('Canvas scene graph', () => {
           selectedTokenId={null}
           dragging={{}}
           incomingMove={{}}
+          role="dm"
+          fogStrokes={[]}
+          fogInProgress={null}
         />
       </div>,
     );
@@ -133,6 +145,9 @@ describe('Canvas scene graph', () => {
           selectedTokenId={null}
           dragging={{}}
           incomingMove={{}}
+          role="dm"
+          fogStrokes={[]}
+          fogInProgress={null}
         />
       </div>,
     );

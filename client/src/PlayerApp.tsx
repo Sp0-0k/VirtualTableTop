@@ -146,6 +146,10 @@ export default function PlayerApp() {
             selectedTokenId={null}
             dragging={dragging}
             incomingMove={incomingMove}
+            // TODO(Task 12): wire fog props from store
+            role="player"
+            fogStrokes={[]}
+            fogInProgress={null}
             onMovePreview={(id, x, y) => {
               usePlayerStore.getState().setDragging(id, { x, y });
               socket.emit('token:move_preview', { id, x, y });

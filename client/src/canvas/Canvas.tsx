@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image as KImage, Layer, Stage } from 'react-konva';
 import type Konva from 'konva';
-import type { ApiPage, Token, Player } from '../api.js';
+import type { ApiPage, Token, Player, FogStroke } from '../api.js';
 import { GridLines } from './GridLines.js';
 import { TokenNode } from './TokenNode.js';
 import { SelectionRing } from './SelectionRing.js';
+import { FogLayer } from './FogLayer.js';
 import { stageToWorld, snapPoint } from './coords.js';
 import { zoomAtCursor } from './zoom.js';
 
@@ -17,6 +18,20 @@ interface Props {
   selectedTokenId: number | null;
   dragging: Record<number, { x: number; y: number }>;
   incomingMove: Record<number, { x: number; y: number }>;
+  // Fog props
+  role: 'dm' | 'player';
+  fogStrokes: FogStroke[];
+  fogInProgress: FogStroke | null;
+  fogTool?: {
+    mode: 'reveal' | 'hide';
+    shape: 'brush' | 'rect';
+    radius: number;
+  };
+  // Fog callbacks (DM only; pass undefined on player view)
+  onFogStrokeUpdate?: (s: FogStroke | null) => void;
+  onFogPreview?: (s: FogStroke) => void;
+  onFogCommit?: (s: FogStroke) => void;
+  // Existing callbacks
   onSelect?: (id: number | null) => void;
   onDropAsset?: (assetId: number, world: { x: number; y: number }) => void;
   onMovePreview?: (id: number, x: number, y: number) => void;
@@ -25,7 +40,10 @@ interface Props {
 
 export function Canvas({
   page, tokens, players, movableTokenIds, selectable, selectedTokenId,
-  dragging, incomingMove, onSelect, onDropAsset, onMovePreview, onMoveCommit,
+  dragging, incomingMove,
+  role, fogStrokes, fogInProgress, fogTool,
+  onFogStrokeUpdate, onFogPreview, onFogCommit,
+  onSelect, onDropAsset, onMovePreview, onMoveCommit,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -72,6 +90,93 @@ export function Canvas({
     });
   }
 
+  const fogPainting = useRef(false);
+  const fogQueued = useRef<FogStroke | null>(null);
+  const fogRafScheduled = useRef(false);
+  function emitFogPreview(s: FogStroke) {
+    fogQueued.current = s;
+    if (fogRafScheduled.current) return;
+    fogRafScheduled.current = true;
+    requestAnimationFrame(() => {
+      fogRafScheduled.current = false;
+      const queued = fogQueued.current;
+      fogQueued.current = null;
+      if (queued && onFogPreview) onFogPreview(queued);
+    });
+  }
+
+  const fogActive = role === 'dm' && !!fogTool && !!onFogStrokeUpdate;
+
+  function startFogStroke(world: { x: number; y: number }) {
+    if (!fogTool) return;
+    fogPainting.current = true;
+    const seed: FogStroke = {
+      id: -1,
+      page_id: page.id,
+      mode: fogTool.mode,
+      shape: fogTool.shape,
+      points: [[world.x, world.y]],
+      radius: fogTool.shape === 'brush' ? fogTool.radius : 0,
+      created_at: Date.now(),
+    };
+    onFogStrokeUpdate?.(seed);
+    emitFogPreview(seed);
+  }
+
+  function extendFogStroke(world: { x: number; y: number }) {
+    if (!fogPainting.current || !fogInProgress) return;
+    if (fogInProgress.shape === 'rect') {
+      // Rect: second corner follows the cursor.
+      const next: FogStroke = {
+        ...fogInProgress,
+        points: [fogInProgress.points[0], [world.x, world.y]],
+      };
+      onFogStrokeUpdate?.(next);
+      emitFogPreview(next);
+      return;
+    }
+    // Brush: decimate (skip points within 2 image-px of last).
+    const last = fogInProgress.points[fogInProgress.points.length - 1];
+    const dx = world.x - last[0], dy = world.y - last[1];
+    if (dx * dx + dy * dy < 4) return;
+    const next: FogStroke = {
+      ...fogInProgress,
+      points: [...fogInProgress.points, [world.x, world.y]],
+    };
+    onFogStrokeUpdate?.(next);
+    emitFogPreview(next);
+  }
+
+  function commitFogStroke() {
+    if (!fogPainting.current || !fogInProgress) return;
+    fogPainting.current = false;
+    if (fogInProgress.shape === 'rect') {
+      const [a, b] = fogInProgress.points;
+      if (a[0] === b[0] || a[1] === b[1]) {
+        // Zero-area: discard.
+        onFogStrokeUpdate?.(null);
+        return;
+      }
+    }
+    onFogCommit?.(fogInProgress);
+  }
+
+  function abortFogStroke() {
+    fogPainting.current = false;
+    onFogStrokeUpdate?.(null);
+  }
+
+  useEffect(() => {
+    if (!fogActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && fogPainting.current) abortFogStroke();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // abortFogStroke closes over current onFogStrokeUpdate; rebind on change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fogActive, onFogStrokeUpdate]);
+
   return (
     <div
       ref={containerRef}
@@ -92,10 +197,36 @@ export function Canvas({
         ref={stageRef}
         width={size.w}
         height={size.h}
-        draggable
+        draggable={!fogActive}
         onWheel={(e) => { e.evt.preventDefault(); if (stageRef.current) zoomAtCursor(stageRef.current, e.evt.deltaY); }}
         onMouseDown={(e) => {
+          if (fogActive) {
+            // Only start a fog stroke for left-click on the stage itself.
+            if (e.evt.button !== 0) return;
+            const stage = stageRef.current;
+            if (!stage) return;
+            const pointer = stage.getPointerPosition();
+            if (!pointer) return;
+            const world = stageToWorld(stage, pointer);
+            startFogStroke(world);
+            return;
+          }
           if (selectable && e.target === e.target.getStage()) onSelect?.(null);
+        }}
+        onMouseMove={() => {
+          if (!fogActive || !fogPainting.current) return;
+          const stage = stageRef.current;
+          if (!stage) return;
+          const pointer = stage.getPointerPosition();
+          if (!pointer) return;
+          extendFogStroke(stageToWorld(stage, pointer));
+        }}
+        onMouseUp={() => { if (fogActive) commitFogStroke(); }}
+        onContextMenu={(e) => {
+          if (fogActive && fogPainting.current) {
+            e.evt.preventDefault();
+            abortFogStroke();
+          }
         }}
       >
         <Layer listening={false}>
@@ -110,7 +241,7 @@ export function Canvas({
             />
           )}
         </Layer>
-        <Layer>
+        <Layer listening={!fogActive}>
           {tokens.map((t) => {
             const drag = dragging[t.id];
             const incoming = incomingMove[t.id];
@@ -137,6 +268,15 @@ export function Canvas({
             );
           })}
         </Layer>
+        {imgW > 0 && (
+          <FogLayer
+            imageW={imgW}
+            imageH={imgH}
+            strokes={fogStrokes}
+            inProgress={fogInProgress}
+            role={role}
+          />
+        )}
         <Layer listening={false}>
           {selectable && selectedTokenId !== null && tokens.find((t) => t.id === selectedTokenId) && (
             <SelectionRing

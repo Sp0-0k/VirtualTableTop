@@ -174,6 +174,10 @@ export default function DmApp() {
             selectedTokenId={selectedTokenId}
             dragging={dragging}
             incomingMove={incomingMove}
+            // TODO(Task 12): wire fog props from store/FogDock
+            role="dm"
+            fogStrokes={[]}
+            fogInProgress={null}
             onSelect={(id) => useDmStore.getState().selectToken(id)}
             onDropAsset={(assetId, world) => {
               createToken({
