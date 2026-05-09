@@ -7,6 +7,7 @@ import { COOKIE_DM, COOKIE_PLAYER } from './auth/constants.js';
 import { findPlayerById } from './db/players.js';
 import { buildFullSync } from './broadcast.js';
 import { registerTokenMoveHandlers } from './socket/token-move.js';
+import { registerFogHandlers } from './socket/fog.js';
 
 export interface SocketDeps {
   db: Database.Database;
@@ -53,6 +54,7 @@ export function attachSocketIO(httpServer: http.Server, deps: SocketDeps): AppSo
     socket.emit('session', socket.data);
     socket.emit('state:full_sync', buildFullSync(deps.db, socket));
     registerTokenMoveHandlers(socket, io, deps.db);
+    registerFogHandlers(socket, io, deps.db);
   });
 
   return io;
