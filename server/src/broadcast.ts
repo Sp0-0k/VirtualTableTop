@@ -1,11 +1,28 @@
 import type Database from 'better-sqlite3';
 import type { Server as SocketIOServer } from 'socket.io';
 import { findAssetById } from './db/assets.js';
+import { listFogStrokesByPage, type FogStroke } from './db/fog-strokes.js';
 import { findActivePage, type Page } from './db/pages.js';
+import { listPlayersForSync } from './db/players.js';
 import type { AppSocketIOServer } from './socket.js';
 import type { Token } from './db/tokens.js';
 import { listTokensByPage } from './db/tokens.js';
-import { listPlayersForSync } from './db/players.js';
+
+export interface SocketLike {
+  data: { role: 'dm' | 'player'; name: string; playerId: number | null };
+}
+
+type IoLike = Pick<SocketIOServer, 'sockets'>;
+
+export interface FogStrokePayload {
+  id: number;
+  page_id: number;
+  mode: 'reveal' | 'hide';
+  shape: 'brush' | 'rect';
+  points: [number, number][];
+  radius: number;
+  created_at: number;
+}
 
 export interface PagePayload {
   id: number;
@@ -16,6 +33,7 @@ export interface PagePayload {
   grid_height_squares: number;
   sort_order: number;
   is_active: 0 | 1;
+  strokes?: FogStrokePayload[];
 }
 
 export interface FullSyncPayload {
@@ -42,10 +60,61 @@ export function resolvePageWithUrl(db: Database.Database, page: Page): PagePaylo
   };
 }
 
+export function fogStrokeToPayload(s: FogStroke): FogStrokePayload {
+  return {
+    id: s.id,
+    page_id: s.pageId,
+    mode: s.mode,
+    shape: s.shape,
+    points: s.points,
+    radius: s.radius,
+    created_at: s.createdAt,
+  };
+}
+
+export interface FogBroadcastPayload {
+  page_id: number;
+  [k: string]: unknown;
+}
+
+export function fogPayloadFor<T extends FogBroadcastPayload>(
+  socket: SocketLike,
+  payload: T,
+  activePageId: number | null,
+): T | null {
+  if (socket.data.role === 'dm') return payload;
+  if (activePageId === null) return null;
+  if (payload.page_id === activePageId) return payload;
+  return null;
+}
+
+export function broadcastFogEvent(
+  io: IoLike,
+  event: 'fog:stroking' | 'fog:stroke_added' | 'fog:cleared',
+  payload: FogBroadcastPayload,
+  activePageId: number | null,
+  opts?: { skipSocketId?: string },
+): void {
+  for (const socket of io.sockets.sockets.values()) {
+    if (opts?.skipSocketId && socket.id === opts.skipSocketId) continue;
+    const sockLike = socket as unknown as SocketLike;
+    if (event === 'fog:stroking') {
+      // DM tabs only — never broadcast preview to players.
+      if (sockLike.data.role !== 'dm') continue;
+      socket.emit(event, payload);
+      continue;
+    }
+    const filtered = fogPayloadFor(sockLike, payload, activePageId);
+    if (filtered === null) continue;
+    socket.emit(event, filtered);
+  }
+}
+
 export function buildFullSync(db: Database.Database, socket: SocketLike): FullSyncPayload {
   const active = findActivePage(db);
   if (!active) return { activePage: null, tokens: [], players: [] };
   const pagePayload = resolvePageWithUrl(db, active);
+  pagePayload.strokes = listFogStrokesByPage(db, active.id).map(fogStrokeToPayload);
   const players = listPlayersForSync(db);
   const rawTokens = listTokensByPage(db, active.id);
   const tokens: TokenPayload[] = [];
@@ -59,8 +128,6 @@ export function buildFullSync(db: Database.Database, socket: SocketLike): FullSy
   }
   return { activePage: pagePayload, tokens, players };
 }
-
-type IoLike = Pick<SocketIOServer, 'sockets'>;
 
 export function broadcastTokenEvent(
   io: IoLike,
@@ -112,10 +179,6 @@ export interface TokenPayload {
   // HP fields — undefined when filtered for hp-hidden
   current_hp?: number | null;
   max_hp?: number | null;
-}
-
-export interface SocketLike {
-  data: { role: 'dm' | 'player'; name: string; playerId: number | null };
 }
 
 export function tokenForSocket(
