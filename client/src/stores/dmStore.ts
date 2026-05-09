@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Token, Player } from '../api.js';
+import type { Token, Player, FogStroke } from '../api.js';
 
 export interface ApiAsset {
   id: number;
@@ -34,6 +34,14 @@ interface DmState {
   selectedTokenId: number | null;
   dragging: Record<number, { x: number; y: number }>;
   incomingMove: Record<number, { x: number; y: number }>;
+  activePageStrokes: FogStroke[];
+  dmInProgressStroke: FogStroke | null;
+  tool: 'select' | 'fog';
+  fogSettings: {
+    mode: 'reveal' | 'hide';
+    shape: 'brush' | 'rect';
+    radius: number;
+  };
 
   setAssets: (a: ApiAsset[]) => void;
   upsertAsset: (a: ApiAsset) => void;
@@ -51,6 +59,12 @@ interface DmState {
   clearDragging: (id: number) => void;
   setIncomingMove: (id: number, pos: { x: number; y: number }) => void;
   clearIncomingMove: (id: number) => void;
+  setActivePageStrokes: (strokes: FogStroke[]) => void;
+  appendActivePageStroke: (s: FogStroke) => void;
+  clearActivePageStrokes: () => void;
+  setDmInProgressStroke: (s: FogStroke | null) => void;
+  setTool: (tool: 'select' | 'fog') => void;
+  setFogSettings: (patch: Partial<DmState['fogSettings']>) => void;
 }
 
 export const useDmStore = create<DmState>((set) => ({
@@ -63,6 +77,10 @@ export const useDmStore = create<DmState>((set) => ({
   selectedTokenId: null,
   dragging: {},
   incomingMove: {},
+  activePageStrokes: [],
+  dmInProgressStroke: null,
+  tool: 'select',
+  fogSettings: { mode: 'reveal', shape: 'brush', radius: 120 },
 
   setAssets: (assets) => set({ assets }),
   upsertAsset: (asset) =>
@@ -133,4 +151,17 @@ export const useDmStore = create<DmState>((set) => ({
     const { [id]: _drop, ...rest } = s.incomingMove;
     return { incomingMove: rest };
   }),
+
+  setActivePageStrokes: (activePageStrokes) => set({ activePageStrokes }),
+  appendActivePageStroke: (s) =>
+    set((st) => ({ activePageStrokes: [...st.activePageStrokes, s] })),
+  clearActivePageStrokes: () => set({ activePageStrokes: [] }),
+  setDmInProgressStroke: (dmInProgressStroke) => set({ dmInProgressStroke }),
+  setTool: (tool) => set((st) => ({
+    tool,
+    // Switching away from fog cancels any in-progress paint.
+    dmInProgressStroke: tool === 'fog' ? st.dmInProgressStroke : null,
+  })),
+  setFogSettings: (patch) =>
+    set((st) => ({ fogSettings: { ...st.fogSettings, ...patch } })),
 }));

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { ApiPage } from './dmStore.js';
-import type { Token, Player } from '../api.js';
+import type { Token, Player, FogStroke } from '../api.js';
 
 interface PlayerState {
   activePage: ApiPage | null;
@@ -20,6 +20,10 @@ interface PlayerState {
   clearDragging: (id: number) => void;
   setIncomingMove: (id: number, pos: { x: number; y: number }) => void;
   clearIncomingMove: (id: number) => void;
+  activePageStrokes: FogStroke[];
+  setActivePageStrokes: (strokes: FogStroke[]) => void;
+  appendActivePageStroke: (s: FogStroke) => void;
+  clearActivePageStrokes: () => void;
 }
 
 export const usePlayerStore = create<PlayerState>((set) => ({
@@ -29,6 +33,7 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   players: [],
   dragging: {},
   incomingMove: {},
+  activePageStrokes: [],
 
   setActivePage: (activePage) => set({ activePage }),
   setMyPlayerId: (myPlayerId) => set({ myPlayerId }),
@@ -51,4 +56,8 @@ export const usePlayerStore = create<PlayerState>((set) => ({
     const { [id]: _drop, ...rest } = s.incomingMove;
     return { incomingMove: rest };
   }),
+  setActivePageStrokes: (activePageStrokes) => set({ activePageStrokes }),
+  appendActivePageStroke: (s) =>
+    set((st) => ({ activePageStrokes: [...st.activePageStrokes, s] })),
+  clearActivePageStrokes: () => set({ activePageStrokes: [] }),
 }));
