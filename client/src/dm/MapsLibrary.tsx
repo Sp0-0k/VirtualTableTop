@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useDmStore } from '../stores/dmStore.js';
 import { deleteAsset, uploadMapAsset, type ApiAsset } from '../api.js';
 
 export default function MapsLibrary() {
-  const assets = useDmStore((s) => s.assets.filter((a) => a.kind === 'map'));
+  const allAssets = useDmStore((s) => s.assets);
+  const assets = useMemo(() => allAssets.filter((a) => a.kind === 'map'), [allAssets]);
   const upsertAsset = useDmStore((s) => s.upsertAsset);
   const setAssets = useDmStore((s) => s.setAssets);
   const [error, setError] = useState<string | null>(null);

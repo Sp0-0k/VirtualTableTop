@@ -13,7 +13,8 @@ export default function PlayerApp() {
   const [player, setPlayer] = useState<Player | null>(null);
 
   const activePage = usePlayerStore((s) => s.activePage);
-  const tokens = usePlayerStore((s) => Object.values(s.tokens));
+  const tokensRecord = usePlayerStore((s) => s.tokens);
+  const tokens = useMemo(() => Object.values(tokensRecord), [tokensRecord]);
   const players = usePlayerStore((s) => s.players);
   const dragging = usePlayerStore((s) => s.dragging);
   const incomingMove = usePlayerStore((s) => s.incomingMove);

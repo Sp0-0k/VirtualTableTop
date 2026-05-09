@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useDmStore } from '../stores/dmStore.js';
 import { deleteAsset, listTokenAssets, uploadTokenAsset, type ApiAsset } from '../api.js';
 
 export function TokenLibrary() {
-  const assets = useDmStore((s) => s.assets.filter((a) => a.kind === 'token'));
+  const allAssets = useDmStore((s) => s.assets);
+  const assets = useMemo(() => allAssets.filter((a) => a.kind === 'token'), [allAssets]);
   const setAssets = useDmStore((s) => s.setAssets);
   const upsertAsset = useDmStore((s) => s.upsertAsset);
   const fileInput = useRef<HTMLInputElement>(null);

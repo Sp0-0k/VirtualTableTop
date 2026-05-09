@@ -103,7 +103,8 @@ export default function DmApp() {
   const previewPage = useDmStore((s) =>
     s.selectedPageId ? s.pages.find((p) => p.id === s.selectedPageId) ?? null : null,
   );
-  const tokens = useDmStore((s) => Object.values(s.tokens));
+  const tokensRecord = useDmStore((s) => s.tokens);
+  const tokens = useMemo(() => Object.values(tokensRecord), [tokensRecord]);
   const players = useDmStore((s) => s.players);
   const selectedTokenId = useDmStore((s) => s.selectedTokenId);
   const dragging = useDmStore((s) => s.dragging);
