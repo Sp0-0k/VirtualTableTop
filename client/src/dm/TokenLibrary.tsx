@@ -69,6 +69,7 @@ export function TokenLibrary() {
           <div
             key={a.id}
             draggable
+            data-testid="token-asset"
             onDragStart={(e) => e.dataTransfer.setData('application/x-vtt-asset', String(a.id))}
             style={{ position: 'relative', width: 64, height: 64, border: '1px solid #444', cursor: 'grab' }}
             title={a.originalName}
