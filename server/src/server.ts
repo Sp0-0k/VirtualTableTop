@@ -10,6 +10,7 @@ import { dmFogRouter } from './routes/dm-fog.js';
 import { playerRouter } from './routes/player.js';
 import { attachSocketIO } from './socket.js';
 import { ensureUploadsDir, getUploadsDir } from './assets/storage.js';
+import { testResetRouter } from './routes/test-reset.js';
 
 export interface ServerDeps {
   db: Database.Database;
@@ -44,6 +45,10 @@ export function createServer(deps: ServerDeps): http.Server {
   app.use('/api/dm/pages', dmFogRouter({ db: deps.db, io }));
   app.use('/api/dm/tokens', dmTokensRouter({ db: deps.db, io }));
   app.use('/api', playerRouter(deps.db));
+
+  if (process.env.ENABLE_TEST_RESET === '1') {
+    app.use('/api/test', testResetRouter({ db: deps.db }));
+  }
 
   return httpServer;
 }

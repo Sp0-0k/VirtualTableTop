@@ -29,3 +29,8 @@ Thumbs.db
 # Local Claude Code settings
 .claude/settings.local.json
 
+# Playwright e2e
+.e2e/
+playwright-report/
+test-results/
+
