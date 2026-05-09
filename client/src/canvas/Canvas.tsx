@@ -151,6 +151,11 @@ export function Canvas({
     if (!fogPainting.current || !fogInProgress) return;
     fogPainting.current = false;
     if (fogInProgress.shape === 'rect') {
+      if (fogInProgress.points.length < 2) {
+        // Single seed point (no mousemove): degenerate, discard.
+        onFogStrokeUpdate?.(null);
+        return;
+      }
       const [a, b] = fogInProgress.points;
       if (a[0] === b[0] || a[1] === b[1]) {
         // Zero-area: discard.
