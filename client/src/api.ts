@@ -49,6 +49,16 @@ export interface ApiAsset {
   uploadedAt: number;
 }
 
+export interface FogStroke {
+  id: number;
+  page_id: number;
+  mode: 'reveal' | 'hide';
+  shape: 'brush' | 'rect';
+  points: [number, number][];
+  radius: number;
+  created_at: number;
+}
+
 export interface ApiPage {
   id: number;
   name: string;
@@ -58,6 +68,7 @@ export interface ApiPage {
   grid_height_squares: number;
   sort_order: number;
   is_active: 0 | 1;
+  strokes?: FogStroke[];
 }
 
 export async function listMapAssets(): Promise<ApiAsset[]> {
@@ -255,4 +266,26 @@ export async function patchPage(id: number, patch: Partial<{
   if (!res.ok) throw new Error(`patchPage failed: ${res.status}`);
   const body = await res.json();
   return body.page;
+}
+
+export async function clearFog(pageId: number): Promise<void> {
+  const res = await fetch(`/api/dm/pages/${pageId}/fog`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (res.status !== 204) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `clearFog failed: ${res.status}`);
+  }
+}
+
+export async function revealAllFog(pageId: number): Promise<void> {
+  const res = await fetch(`/api/dm/pages/${pageId}/fog/reveal-all`, {
+    method: 'POST',
+    credentials: 'include',
+  });
+  if (res.status !== 204) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `revealAllFog failed: ${res.status}`);
+  }
 }
