@@ -18,6 +18,7 @@ export default function PlayerApp() {
   const players = usePlayerStore((s) => s.players);
   const dragging = usePlayerStore((s) => s.dragging);
   const incomingMove = usePlayerStore((s) => s.incomingMove);
+  const fogStrokes = usePlayerStore((s) => s.activePageStrokes);
 
   const movableTokenIds = useMemo(
     () =>
@@ -58,9 +59,12 @@ export default function PlayerApp() {
         usePlayerStore.getState().setActivePage(p.activePage);
         usePlayerStore.getState().setPlayers(p.players);
         usePlayerStore.getState().setTokens(p.tokens);
+        usePlayerStore.getState().setActivePageStrokes(p.activePage?.strokes ?? []);
       },
-      onActivePageChanged: ({ activePage }) =>
-        usePlayerStore.getState().setActivePage(activePage),
+      onActivePageChanged: ({ activePage }) => {
+        usePlayerStore.getState().setActivePage(activePage);
+        usePlayerStore.getState().setActivePageStrokes(activePage?.strokes ?? []);
+      },
       onTokenCreated: (t) => usePlayerStore.getState().upsertToken(t),
       onTokenUpdated: (t) => usePlayerStore.getState().upsertToken(t),
       onTokenDeleted: ({ id }) => usePlayerStore.getState().removeToken(id),
@@ -72,9 +76,12 @@ export default function PlayerApp() {
         usePlayerStore.getState().clearIncomingMove(id);
         usePlayerStore.getState().clearDragging(id);
       },
-      // TODO(Task 12): wire fog handlers
-      onFogStrokeAdded: () => {},
-      onFogCleared: () => {},
+      onFogStrokeAdded: ({ stroke }) => {
+        usePlayerStore.getState().appendActivePageStroke(stroke);
+      },
+      onFogCleared: () => {
+        usePlayerStore.getState().clearActivePageStrokes();
+      },
     });
 
     return () => {
@@ -146,9 +153,8 @@ export default function PlayerApp() {
             selectedTokenId={null}
             dragging={dragging}
             incomingMove={incomingMove}
-            // TODO(Task 12): wire fog props from store
             role="player"
-            fogStrokes={[]}
+            fogStrokes={fogStrokes}
             fogInProgress={null}
             onMovePreview={(id, x, y) => {
               usePlayerStore.getState().setDragging(id, { x, y });

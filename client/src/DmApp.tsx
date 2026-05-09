@@ -18,6 +18,7 @@ import NewPageModal from './dm/NewPageModal.js';
 import { TokenLibrary } from './dm/TokenLibrary.js';
 import { TokenPopover } from './dm/TokenPopover.js';
 import { PageSettingsPanel } from './dm/PageSettingsPanel.js';
+import { FogDock } from './dm/FogDock.js';
 
 type Phase = 'bootstrapping' | 'connecting' | 'connected' | 'error';
 
@@ -59,9 +60,11 @@ export default function DmApp() {
       onFullSync: (p) => {
         useDmStore.getState().setPlayers(p.players);
         useDmStore.getState().setTokens(p.tokens);
+        useDmStore.getState().setActivePageStrokes(p.activePage?.strokes ?? []);
       },
       onActivePageChanged: ({ activePage }) => {
         useDmStore.getState().setActivePageId(activePage?.id ?? null);
+        useDmStore.getState().setActivePageStrokes(activePage?.strokes ?? []);
         if (activePage) {
           listTokens(activePage.id).then((ts) => useDmStore.getState().setTokens(ts));
         } else {
@@ -90,9 +93,25 @@ export default function DmApp() {
         useDmStore.getState().clearIncomingMove(id);
         useDmStore.getState().clearDragging(id);
       },
-      // TODO(Task 12): wire fog handlers
-      onFogStrokeAdded: () => {},
-      onFogCleared: () => {},
+      onFogStroking: ({ page_id, mode, shape, points, radius }) => {
+        const ap = useDmStore.getState().activePageId;
+        if (page_id !== ap) return;
+        useDmStore.getState().setDmInProgressStroke({
+          id: -1, page_id, mode, shape, points, radius, created_at: Date.now(),
+        });
+      },
+      onFogStrokeAdded: ({ page_id, stroke }) => {
+        const ap = useDmStore.getState().activePageId;
+        if (page_id !== ap) return;
+        useDmStore.getState().appendActivePageStroke(stroke);
+        useDmStore.getState().setDmInProgressStroke(null);
+      },
+      onFogCleared: ({ page_id }) => {
+        const ap = useDmStore.getState().activePageId;
+        if (page_id !== ap) return;
+        useDmStore.getState().clearActivePageStrokes();
+        useDmStore.getState().setDmInProgressStroke(null);
+      },
     });
 
     return () => {
@@ -114,6 +133,11 @@ export default function DmApp() {
   const incomingMove = useDmStore((s) => s.incomingMove);
   const movableTokenIds = useMemo(() => new Set(tokens.map((t) => t.id)), [tokens]);
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
+  const tool = useDmStore((s) => s.tool);
+  const setTool = useDmStore((s) => s.setTool);
+  const fogSettings = useDmStore((s) => s.fogSettings);
+  const fogStrokes = useDmStore((s) => s.activePageStrokes);
+  const fogInProgress = useDmStore((s) => s.dmInProgressStroke);
 
   if (phase === 'error') {
     return (
@@ -156,6 +180,32 @@ export default function DmApp() {
         <span style={{ color: '#888', fontSize: '0.85rem' }}>
           {phase === 'connected' ? 'connected' : 'connecting…'}
         </span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => setTool('select')}
+            style={{
+              padding: '4px 10px',
+              background: tool === 'select' ? '#357' : 'transparent',
+              color: tool === 'select' ? '#fff' : '#333',
+              border: '1px solid #aaa',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          >Select</button>
+          <button
+            type="button"
+            onClick={() => setTool('fog')}
+            style={{
+              padding: '4px 10px',
+              background: tool === 'fog' ? '#357' : 'transparent',
+              color: tool === 'fog' ? '#fff' : '#333',
+              border: '1px solid #aaa',
+              borderRadius: 4,
+              cursor: 'pointer',
+            }}
+          >Fog</button>
+        </div>
       </header>
       <aside style={{ borderRight: '1px solid #333', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         <PagesSidebar onNewPage={() => setShowNewPage(true)} />
@@ -170,14 +220,23 @@ export default function DmApp() {
             tokens={tokens}
             players={players}
             movableTokenIds={movableTokenIds}
-            selectable
+            selectable={tool === 'select'}
             selectedTokenId={selectedTokenId}
             dragging={dragging}
             incomingMove={incomingMove}
-            // TODO(Task 12): wire fog props from store/FogDock
             role="dm"
-            fogStrokes={[]}
-            fogInProgress={null}
+            fogStrokes={fogStrokes}
+            fogInProgress={fogInProgress}
+            fogTool={tool === 'fog' ? fogSettings : undefined}
+            onFogStrokeUpdate={(s) => useDmStore.getState().setDmInProgressStroke(s)}
+            onFogPreview={(s) => socket.emit('fog:stroke_preview', {
+              pageId: s.page_id, mode: s.mode, shape: s.shape,
+              points: s.points, radius: s.radius,
+            })}
+            onFogCommit={(s) => socket.emit('fog:stroke_commit', {
+              pageId: s.page_id, mode: s.mode, shape: s.shape,
+              points: s.points, radius: s.radius,
+            })}
             onSelect={(id) => useDmStore.getState().selectToken(id)}
             onDropAsset={(assetId, world) => {
               createToken({
@@ -196,6 +255,7 @@ export default function DmApp() {
         ) : (
           <div style={{ padding: 24, color: '#888' }}>Select a page from the sidebar</div>
         )}
+        {previewPage && tool === 'fog' && <FogDock />}
         {selectedToken && (
           <div style={{ position: 'absolute', top: 16, right: 16 }}>
             <TokenPopover
