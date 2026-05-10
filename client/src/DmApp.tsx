@@ -131,6 +131,11 @@ export default function DmApp() {
   const tokensRecord = useDmStore((s) => s.tokens);
   const tokens = useMemo(() => Object.values(tokensRecord), [tokensRecord]);
   const players = useDmStore((s) => s.players);
+  const onlinePlayerIds = useDmStore((s) => s.onlinePlayerIds);
+  const onlinePlayers = useMemo(
+    () => players.filter((p) => onlinePlayerIds.has(p.id)),
+    [players, onlinePlayerIds],
+  );
   const selectedTokenId = useDmStore((s) => s.selectedTokenId);
   const dragging = useDmStore((s) => s.dragging);
   const incomingMove = useDmStore((s) => s.incomingMove);
@@ -183,7 +188,14 @@ export default function DmApp() {
         <span style={{ color: '#888', fontSize: '0.85rem' }}>
           {phase === 'connected' ? 'connected' : 'connecting…'}
         </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <span style={{ marginLeft: 'auto', color: '#666', fontSize: '0.85rem' }}>
+          {onlinePlayers.length === 0
+            ? 'no players online'
+            : onlinePlayers.map((p) => (
+                <span key={p.id} style={{ marginRight: 8, color: p.color }}>{p.name}</span>
+              ))}
+        </span>
+        <div style={{ marginLeft: 16, display: 'flex', gap: 8 }}>
           <button
             type="button"
             onClick={() => setTool('select')}

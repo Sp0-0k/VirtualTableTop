@@ -109,8 +109,9 @@ export default function PlayerApp() {
     );
   }
 
+  const onlinePlayerIds = usePlayerStore((s) => s.onlinePlayerIds);
   const otherPlayers = player
-    ? players.filter((p) => p.id !== player.id)
+    ? players.filter((p) => p.id !== player.id && onlinePlayerIds.has(p.id))
     : [];
 
   return (
