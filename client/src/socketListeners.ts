@@ -18,6 +18,7 @@ interface FullSyncPayload {
   activePage: ApiPage | null;
   tokens: Token[];
   players: Player[];
+  online_player_ids: number[];
 }
 
 export interface DmHandlers {

@@ -7,6 +7,7 @@ interface PlayerState {
   myPlayerId: number | null;
   tokens: Record<number, Token>;
   players: Player[];
+  onlinePlayerIds: Set<number>;
   dragging: Record<number, { x: number; y: number }>;
   incomingMove: Record<number, { x: number; y: number }>;
 
@@ -16,6 +17,9 @@ interface PlayerState {
   upsertToken: (t: Token) => void;
   removeToken: (id: number) => void;
   setPlayers: (p: Player[]) => void;
+  setOnlinePlayerIds: (ids: number[]) => void;
+  markPlayerOnline: (id: number) => void;
+  markPlayerOffline: (id: number) => void;
   setDragging: (id: number, pos: { x: number; y: number }) => void;
   clearDragging: (id: number) => void;
   setIncomingMove: (id: number, pos: { x: number; y: number }) => void;
@@ -31,6 +35,7 @@ export const usePlayerStore = create<PlayerState>((set) => ({
   myPlayerId: null,
   tokens: {},
   players: [],
+  onlinePlayerIds: new Set<number>(),
   dragging: {},
   incomingMove: {},
   activePageStrokes: [],
@@ -46,6 +51,19 @@ export const usePlayerStore = create<PlayerState>((set) => ({
     return { tokens: rest };
   }),
   setPlayers: (players) => set({ players }),
+  setOnlinePlayerIds: (ids) => set({ onlinePlayerIds: new Set(ids) }),
+  markPlayerOnline: (id) =>
+    set((s) => {
+      const next = new Set(s.onlinePlayerIds);
+      next.add(id);
+      return { onlinePlayerIds: next };
+    }),
+  markPlayerOffline: (id) =>
+    set((s) => {
+      const next = new Set(s.onlinePlayerIds);
+      next.delete(id);
+      return { onlinePlayerIds: next };
+    }),
   setDragging: (id, pos) => set((s) => ({ dragging: { ...s.dragging, [id]: pos } })),
   clearDragging: (id) => set((s) => {
     const { [id]: _drop, ...rest } = s.dragging;

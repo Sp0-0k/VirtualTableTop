@@ -31,6 +31,7 @@ interface DmState {
   activePageId: number | null;
   tokens: Record<number, Token>;
   players: Player[];
+  onlinePlayerIds: Set<number>;
   selectedTokenId: number | null;
   dragging: Record<number, { x: number; y: number }>;
   incomingMove: Record<number, { x: number; y: number }>;
@@ -54,6 +55,9 @@ interface DmState {
   upsertToken: (t: Token) => void;
   removeToken: (id: number) => void;
   setPlayers: (p: Player[]) => void;
+  setOnlinePlayerIds: (ids: number[]) => void;
+  markPlayerOnline: (id: number) => void;
+  markPlayerOffline: (id: number) => void;
   selectToken: (id: number | null) => void;
   setDragging: (id: number, pos: { x: number; y: number }) => void;
   clearDragging: (id: number) => void;
@@ -74,6 +78,7 @@ export const useDmStore = create<DmState>((set) => ({
   activePageId: null,
   tokens: {},
   players: [],
+  onlinePlayerIds: new Set<number>(),
   selectedTokenId: null,
   dragging: {},
   incomingMove: {},
@@ -140,6 +145,19 @@ export const useDmStore = create<DmState>((set) => ({
     return { tokens: rest, selectedTokenId: s.selectedTokenId === id ? null : s.selectedTokenId };
   }),
   setPlayers: (players) => set({ players }),
+  setOnlinePlayerIds: (ids) => set({ onlinePlayerIds: new Set(ids) }),
+  markPlayerOnline: (id) =>
+    set((s) => {
+      const next = new Set(s.onlinePlayerIds);
+      next.add(id);
+      return { onlinePlayerIds: next };
+    }),
+  markPlayerOffline: (id) =>
+    set((s) => {
+      const next = new Set(s.onlinePlayerIds);
+      next.delete(id);
+      return { onlinePlayerIds: next };
+    }),
   selectToken: (selectedTokenId) => set({ selectedTokenId }),
   setDragging: (id, pos) => set((s) => ({ dragging: { ...s.dragging, [id]: pos } })),
   clearDragging: (id) => set((s) => {
