@@ -55,12 +55,26 @@ export function attachSocketIO(httpServer: http.Server, deps: SocketDeps): AppSo
   io.on('connection', (socket) => {
     if (socket.data.role === 'dm') socket.join('dm');
     socket.emit('session', socket.data);
+
+    let presenceJoin: { playerId: number; firstSocket: boolean } | null = null;
     if (socket.data.role === 'player' && socket.data.playerId !== null) {
-      presence.connect(socket.data.playerId, socket.id);
+      const playerId = socket.data.playerId;
+      const { firstSocket } = presence.connect(playerId, socket.id);
+      presenceJoin = { playerId, firstSocket };
     }
+
     socket.emit('state:full_sync', buildFullSync(deps.db, socket, presence));
     registerTokenMoveHandlers(socket, io, deps.db);
     registerFogHandlers(socket, io, deps.db);
+
+    if (presenceJoin) {
+      const { playerId, firstSocket } = presenceJoin;
+      if (firstSocket) io.emit('player:joined', { playerId });
+      socket.on('disconnect', () => {
+        const { lastSocket } = presence.disconnect(playerId, socket.id);
+        if (lastSocket) io.emit('player:left', { playerId });
+      });
+    }
   });
 
   return io;
