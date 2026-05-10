@@ -21,6 +21,8 @@ export function buildFogBitmap(
     ctx.strokeStyle = '#000';
 
     if (s.shape === 'rect') {
+      // In-progress rect has a 1-point seed until the first mousemove.
+      if (s.points.length < 2) continue;
       const [[x1, y1], [x2, y2]] = s.points;
       ctx.fillRect(x1, y1, x2 - x1, y2 - y1);
       continue;

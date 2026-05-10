@@ -143,7 +143,7 @@ export default function PlayerApp() {
         )}
       </header>
       <main style={{ flex: 1, position: 'relative' }}>
-        {player && activePage ? (
+        {activePage ? (
           <Canvas
             page={activePage}
             tokens={tokens}
@@ -167,7 +167,7 @@ export default function PlayerApp() {
           />
         ) : (
           <div style={{ padding: 24, color: '#888' }}>
-            {player ? 'Waiting for the DM…' : 'Connecting…'}
+            {phase === 'connected' ? 'Waiting for the DM…' : 'Connecting…'}
           </div>
         )}
       </main>
