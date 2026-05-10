@@ -37,6 +37,8 @@ export interface DmHandlers {
   onFogStroking?: (p: FogStrokingPayload) => void;
   onFogStrokeAdded: (p: FogStrokeAddedPayload) => void;
   onFogCleared: (p: FogClearedPayload) => void;
+  onPlayerJoined: (p: { playerId: number }) => void;
+  onPlayerLeft: (p: { playerId: number }) => void;
 }
 
 export function attachDmListeners(socket: Socket, h: DmHandlers): () => void {
@@ -56,6 +58,8 @@ export function attachDmListeners(socket: Socket, h: DmHandlers): () => void {
     ['fog:stroking', (h.onFogStroking ?? (() => {})) as never],
     ['fog:stroke_added', h.onFogStrokeAdded as never],
     ['fog:cleared', h.onFogCleared as never],
+    ['player:joined', h.onPlayerJoined as never],
+    ['player:left', h.onPlayerLeft as never],
   ];
   for (const [evt, fn] of wired) socket.on(evt, fn);
   return () => { for (const [evt, fn] of wired) socket.off(evt, fn); };
@@ -71,6 +75,8 @@ export interface PlayerHandlers {
   onTokenMoved: (p: { id: number; x: number; y: number }) => void;
   onFogStrokeAdded: (p: FogStrokeAddedPayload) => void;
   onFogCleared: (p: FogClearedPayload) => void;
+  onPlayerJoined: (p: { playerId: number }) => void;
+  onPlayerLeft: (p: { playerId: number }) => void;
 }
 
 export function attachPlayerListeners(socket: Socket, h: PlayerHandlers): () => void {
@@ -84,6 +90,8 @@ export function attachPlayerListeners(socket: Socket, h: PlayerHandlers): () => 
     ['token:moved', h.onTokenMoved as never],
     ['fog:stroke_added', h.onFogStrokeAdded as never],
     ['fog:cleared', h.onFogCleared as never],
+    ['player:joined', h.onPlayerJoined as never],
+    ['player:left', h.onPlayerLeft as never],
   ];
   for (const [evt, fn] of wired) socket.on(evt, fn);
   return () => { for (const [evt, fn] of wired) socket.off(evt, fn); };

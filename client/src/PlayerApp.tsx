@@ -60,6 +60,7 @@ export default function PlayerApp() {
         usePlayerStore.getState().setPlayers(p.players);
         usePlayerStore.getState().setTokens(p.tokens);
         usePlayerStore.getState().setActivePageStrokes(p.activePage?.strokes ?? []);
+        usePlayerStore.getState().setOnlinePlayerIds(p.online_player_ids);
       },
       onActivePageChanged: ({ activePage }) => {
         usePlayerStore.getState().setActivePage(activePage);
@@ -82,6 +83,8 @@ export default function PlayerApp() {
       onFogCleared: () => {
         usePlayerStore.getState().clearActivePageStrokes();
       },
+      onPlayerJoined: ({ playerId }) => usePlayerStore.getState().markPlayerOnline(playerId),
+      onPlayerLeft: ({ playerId }) => usePlayerStore.getState().markPlayerOffline(playerId),
     });
 
     return () => {

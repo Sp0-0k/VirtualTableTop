@@ -61,6 +61,7 @@ export default function DmApp() {
         useDmStore.getState().setPlayers(p.players);
         useDmStore.getState().setTokens(p.tokens);
         useDmStore.getState().setActivePageStrokes(p.activePage?.strokes ?? []);
+        useDmStore.getState().setOnlinePlayerIds(p.online_player_ids);
       },
       onActivePageChanged: ({ activePage }) => {
         useDmStore.getState().setActivePageId(activePage?.id ?? null);
@@ -112,6 +113,8 @@ export default function DmApp() {
         useDmStore.getState().clearActivePageStrokes();
         useDmStore.getState().setDmInProgressStroke(null);
       },
+      onPlayerJoined: ({ playerId }) => useDmStore.getState().markPlayerOnline(playerId),
+      onPlayerLeft: ({ playerId }) => useDmStore.getState().markPlayerOffline(playerId),
     });
 
     return () => {
