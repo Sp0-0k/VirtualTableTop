@@ -5,6 +5,8 @@ import NamePicker from './NamePicker.js';
 import { Canvas } from './canvas/Canvas.js';
 import { usePlayerStore } from './stores/playerStore.js';
 import { attachPlayerListeners } from './socketListeners.js';
+import { ToastHost } from './toasts/ToastHost.js';
+import { useToasts } from './toasts/store.js';
 
 type Phase = 'loading' | 'name-picker' | 'connecting' | 'connected';
 
@@ -50,9 +52,13 @@ export default function PlayerApp() {
 
     const onConnect = () => setPhase('connected');
     const onDisconnect = () => setPhase('connecting');
+    const onSocketError = (p: { code: string; message: string }) => {
+      useToasts.getState().push(p.message ?? 'Error', 'error');
+    };
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('error', onSocketError);
 
     const detach = attachPlayerListeners(socket, {
       onFullSync: (p) => {
@@ -90,6 +96,7 @@ export default function PlayerApp() {
     return () => {
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('error', onSocketError);
       detach();
     };
   }, []);
@@ -102,10 +109,13 @@ export default function PlayerApp() {
 
   if (phase === 'name-picker') {
     return (
-      <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-        <h1>Virtual Tabletop</h1>
-        <NamePicker onJoined={handleJoined} />
-      </main>
+      <>
+        <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
+          <h1>Virtual Tabletop</h1>
+          <NamePicker onJoined={handleJoined} />
+        </main>
+        <ToastHost />
+      </>
     );
   }
 
@@ -115,6 +125,7 @@ export default function PlayerApp() {
     : [];
 
   return (
+    <>
     <div
       style={{
         fontFamily: 'system-ui, sans-serif',
@@ -176,5 +187,7 @@ export default function PlayerApp() {
         )}
       </main>
     </div>
+    <ToastHost />
+    </>
   );
 }

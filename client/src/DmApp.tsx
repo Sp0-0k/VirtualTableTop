@@ -11,6 +11,8 @@ import {
 } from './api.js';
 import { useDmStore } from './stores/dmStore.js';
 import { attachDmListeners } from './socketListeners.js';
+import { ToastHost } from './toasts/ToastHost.js';
+import { useToasts } from './toasts/store.js';
 import { Canvas } from './canvas/Canvas.js';
 import PagesSidebar from './dm/PagesSidebar.js';
 import MapsLibrary from './dm/MapsLibrary.js';
@@ -52,9 +54,13 @@ export default function DmApp() {
 
     const onConnect = () => setPhase('connected');
     const onDisconnect = () => setPhase('connecting');
+    const onSocketError = (p: { code: string; message: string }) => {
+      useToasts.getState().push(p.message ?? 'Error', 'error');
+    };
 
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
+    socket.on('error', onSocketError);
 
     const detach = attachDmListeners(socket, {
       onFullSync: (p) => {
@@ -121,6 +127,7 @@ export default function DmApp() {
       cancelled = true;
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
+      socket.off('error', onSocketError);
       detach();
     };
   }, []);
@@ -149,22 +156,29 @@ export default function DmApp() {
 
   if (phase === 'error') {
     return (
-      <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-        <h1>Virtual Tabletop — DM</h1>
-        <p style={{ color: 'crimson' }}>Error: {error}</p>
-      </main>
+      <>
+        <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
+          <h1>Virtual Tabletop — DM</h1>
+          <p style={{ color: 'crimson' }}>Error: {error}</p>
+        </main>
+        <ToastHost />
+      </>
     );
   }
 
   if (phase === 'bootstrapping') {
     return (
-      <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-        <p>Authenticating…</p>
-      </main>
+      <>
+        <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
+          <p>Authenticating…</p>
+        </main>
+        <ToastHost />
+      </>
     );
   }
 
   return (
+    <>
     <div
       style={{
         fontFamily: 'system-ui, sans-serif',
@@ -283,5 +297,7 @@ export default function DmApp() {
       </main>
       {showNewPage && <NewPageModal onClose={() => setShowNewPage(false)} />}
     </div>
+    <ToastHost />
+    </>
   );
 }
