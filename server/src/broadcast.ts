@@ -4,6 +4,7 @@ import { findAssetById } from './db/assets.js';
 import { listFogStrokesByPage, type FogStroke } from './db/fog-strokes.js';
 import { findActivePage, type Page } from './db/pages.js';
 import { listPlayersForSync } from './db/players.js';
+import type { Presence } from './presence.js';
 import type { AppSocketIOServer } from './socket.js';
 import type { Token } from './db/tokens.js';
 import { listTokensByPage } from './db/tokens.js';
@@ -40,6 +41,7 @@ export interface FullSyncPayload {
   activePage: PagePayload | null;
   tokens: TokenPayload[];
   players: { id: number; name: string; color: string }[];
+  online_player_ids: number[];
 }
 
 export function resolvePageWithUrl(db: Database.Database, page: Page): PagePayload {
@@ -110,9 +112,14 @@ export function broadcastFogEvent(
   }
 }
 
-export function buildFullSync(db: Database.Database, socket: SocketLike): FullSyncPayload {
+export function buildFullSync(
+  db: Database.Database,
+  socket: SocketLike,
+  presence: Presence,
+): FullSyncPayload {
   const active = findActivePage(db);
-  if (!active) return { activePage: null, tokens: [], players: [] };
+  const online_player_ids = presence.onlinePlayerIds();
+  if (!active) return { activePage: null, tokens: [], players: [], online_player_ids };
   const pagePayload = resolvePageWithUrl(db, active);
   pagePayload.strokes = listFogStrokesByPage(db, active.id).map(fogStrokeToPayload);
   const players = listPlayersForSync(db);
@@ -126,7 +133,7 @@ export function buildFullSync(db: Database.Database, socket: SocketLike): FullSy
     const filtered = tokenForSocket(t, socket, url, thumb);
     if (filtered) tokens.push(filtered);
   }
-  return { activePage: pagePayload, tokens, players };
+  return { activePage: pagePayload, tokens, players, online_player_ids };
 }
 
 export function broadcastTokenEvent(

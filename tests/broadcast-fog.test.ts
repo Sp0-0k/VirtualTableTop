@@ -9,6 +9,7 @@ import {
   fogPayloadFor,
   fogStrokeToPayload,
 } from '../server/src/broadcast.js';
+import { createPresence } from '../server/src/presence.js';
 
 function setup() {
   const db = new Database(':memory:');
@@ -78,7 +79,7 @@ describe('buildFullSync.strokes', () => {
     insertFogStroke(f.db, {
       pageId: f.inactiveId, mode: 'reveal', shape: 'brush', points: [[1, 1]], radius: 10,
     });
-    const sync = buildFullSync(f.db, { data: { role: 'dm', name: 'DM', playerId: null } });
+    const sync = buildFullSync(f.db, { data: { role: 'dm', name: 'DM', playerId: null } }, createPresence());
     expect(sync.activePage).not.toBeNull();
     expect(sync.activePage!.strokes).toHaveLength(1);
     expect(sync.activePage!.strokes![0]).toMatchObject({
@@ -93,13 +94,13 @@ describe('buildFullSync.strokes', () => {
     });
     const sync = buildFullSync(f.db, {
       data: { role: 'player', name: 'A', playerId: 1 },
-    });
+    }, createPresence());
     expect(sync.activePage!.strokes).toHaveLength(1);
   });
 
   it('returns empty strokes array when no strokes exist', () => {
     const f = setup();
-    const sync = buildFullSync(f.db, { data: { role: 'dm', name: 'DM', playerId: null } });
+    const sync = buildFullSync(f.db, { data: { role: 'dm', name: 'DM', playerId: null } }, createPresence());
     expect(sync.activePage!.strokes).toEqual([]);
   });
 });

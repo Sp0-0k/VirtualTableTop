@@ -6,6 +6,7 @@ import { verifyCookie } from './auth/cookies.js';
 import { COOKIE_DM, COOKIE_PLAYER } from './auth/constants.js';
 import { findPlayerById } from './db/players.js';
 import { buildFullSync } from './broadcast.js';
+import { createPresence } from './presence.js';
 import { registerTokenMoveHandlers } from './socket/token-move.js';
 import { registerFogHandlers } from './socket/fog.js';
 
@@ -28,6 +29,8 @@ export function attachSocketIO(httpServer: http.Server, deps: SocketDeps): AppSo
   const io: AppSocketIOServer = new SocketIOServer(httpServer, {
     cors: { origin: false },
   });
+
+  const presence = createPresence();
 
   io.use((socket, next) => {
     const cookies = cookie.parse(socket.handshake.headers.cookie ?? '');
@@ -52,7 +55,10 @@ export function attachSocketIO(httpServer: http.Server, deps: SocketDeps): AppSo
   io.on('connection', (socket) => {
     if (socket.data.role === 'dm') socket.join('dm');
     socket.emit('session', socket.data);
-    socket.emit('state:full_sync', buildFullSync(deps.db, socket));
+    if (socket.data.role === 'player' && socket.data.playerId !== null) {
+      presence.connect(socket.data.playerId, socket.id);
+    }
+    socket.emit('state:full_sync', buildFullSync(deps.db, socket, presence));
     registerTokenMoveHandlers(socket, io, deps.db);
     registerFogHandlers(socket, io, deps.db);
   });

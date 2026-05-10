@@ -6,6 +6,7 @@ import { createPage, setActivePage } from '../server/src/db/pages.js';
 import { createPlayer } from '../server/src/db/players.js';
 import { createToken, updateToken } from '../server/src/db/tokens.js';
 import { tokenForSocket, type SocketLike, buildFullSync, broadcastTokenEvent } from '../server/src/broadcast.js';
+import { createPresence } from '../server/src/presence.js';
 import type { Token } from '../server/src/db/tokens.js';
 
 function dbWithActivePage() {
@@ -38,7 +39,7 @@ describe('buildFullSync (M4 extension)', () => {
     const all = h.db.prepare('SELECT id FROM tokens').all() as { id: number }[];
     updateToken(h.db, all[1].id, { hidden: 1 });
 
-    const dmSync = buildFullSync(h.db, { data: { role: 'dm', name: 'DM', playerId: null } });
+    const dmSync = buildFullSync(h.db, { data: { role: 'dm', name: 'DM', playerId: null } }, createPresence());
     expect(dmSync.tokens).toHaveLength(2);
     expect(dmSync.players).toEqual([
       { id: alice.id, name: 'Alice', color: '#ff0000' },
@@ -46,7 +47,7 @@ describe('buildFullSync (M4 extension)', () => {
 
     const playerSync = buildFullSync(h.db, {
       data: { role: 'player', name: 'Alice', playerId: alice.id },
-    });
+    }, createPresence());
     expect(playerSync.tokens).toHaveLength(1);
     expect(playerSync.tokens[0].name).toBe('Visible');
     h.db.close();
@@ -56,7 +57,7 @@ describe('buildFullSync (M4 extension)', () => {
     const db = new Database(':memory:');
     db.pragma('foreign_keys = ON');
     runMigrations(db, 'migrations');
-    const sync = buildFullSync(db, { data: { role: 'dm', name: 'DM', playerId: null } });
+    const sync = buildFullSync(db, { data: { role: 'dm', name: 'DM', playerId: null } }, createPresence());
     expect(sync.activePage).toBeNull();
     expect(sync.tokens).toEqual([]);
     expect(sync.players).toEqual([]);

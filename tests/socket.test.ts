@@ -190,4 +190,15 @@ describe('state:full_sync on connection', () => {
     expect(payload.activePage?.background_url).toBe('/assets/syncfix.webp');
     client.close();
   });
+
+  it('includes online_player_ids in the payload', async () => {
+    const cookie = await joinAsPlayer(ts, 'Aria', '#aabbcc');
+    const { client, payload } = await connectAndCapture<{
+      online_player_ids: number[];
+      players: { id: number; name: string }[];
+    }>(ts.url, cookie, 'state:full_sync');
+    const me = payload.players.find((p) => p.name === 'Aria')!;
+    expect(payload.online_player_ids).toContain(me.id);
+    client.close();
+  });
 });

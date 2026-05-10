@@ -4,6 +4,7 @@ import { runMigrations } from '../server/src/db/migrate.js';
 import { insertAsset } from '../server/src/db/assets.js';
 import { createPage, setActivePage } from '../server/src/db/pages.js';
 import { buildFullSync, resolvePageWithUrl } from '../server/src/broadcast.js';
+import { createPresence } from '../server/src/presence.js';
 
 function freshDb(): Database.Database {
   const db = new Database(':memory:');
@@ -53,10 +54,11 @@ describe('broadcast helpers', () => {
 
   it('buildFullSync returns { activePage: null } when nothing is active', () => {
     const dmSocket = { data: { role: 'dm' as const, name: 'DM' as const, playerId: null } };
-    const sync = buildFullSync(db, dmSocket);
+    const sync = buildFullSync(db, dmSocket, createPresence());
     expect(sync.activePage).toBeNull();
     expect(sync.tokens).toEqual([]);
     expect(sync.players).toEqual([]);
+    expect(sync.online_player_ids).toEqual([]);
   });
 
   it('buildFullSync returns the resolved active page when one exists', () => {
@@ -77,7 +79,7 @@ describe('broadcast helpers', () => {
     });
     setActivePage(db, p.id);
     const dmSocket = { data: { role: 'dm' as const, name: 'DM' as const, playerId: null } };
-    const sync = buildFullSync(db, dmSocket);
+    const sync = buildFullSync(db, dmSocket, createPresence());
     expect(sync.activePage?.id).toBe(p.id);
     expect(sync.activePage?.background_url).toBe('/assets/h.webp');
     expect(sync.activePage?.is_active).toBe(1);
