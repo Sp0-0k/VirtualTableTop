@@ -52,8 +52,27 @@ export default function DmApp() {
         setPhase('error');
       });
 
-    const onConnect = () => setPhase('connected');
-    const onDisconnect = () => setPhase('connecting');
+    const RECONNECT_TOAST_ID = 'socket-reconnecting';
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const onConnect = () => {
+      setPhase('connected');
+      if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      useToasts.getState().dismiss(RECONNECT_TOAST_ID);
+    };
+    const onDisconnect = () => {
+      setPhase('connecting');
+      if (reconnectTimer !== null) clearTimeout(reconnectTimer);
+      reconnectTimer = setTimeout(() => {
+        useToasts.getState().push('Reconnecting…', 'info', {
+          sticky: true,
+          id: RECONNECT_TOAST_ID,
+        });
+      }, 3000);
+    };
     const onSocketError = (p: { code: string; message: string }) => {
       useToasts.getState().push(p.message ?? 'Error', 'error');
     };
@@ -125,6 +144,7 @@ export default function DmApp() {
 
     return () => {
       cancelled = true;
+      if (reconnectTimer !== null) clearTimeout(reconnectTimer);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('error', onSocketError);
